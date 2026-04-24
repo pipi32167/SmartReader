@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartReader - 设置</title>
+  <link rel="stylesheet" href="./options.css">
+</head>
+<body>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">🤖</span>
+        <h1>SmartReader</h1>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-tab="api">
+          <span>🔑</span> API 配置
+        </button>
+        <button class="nav-item" data-tab="prompts">
+          <span>💬</span> 提示词管理
+        </button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <!-- API Config Tab -->
+      <section id="tab-api" class="tab-content active">
+        <h2>API 配置</h2>
+        <p class="tab-desc">配置 OpenAI 兼容的 API 设置。</p>
+
+        <form id="apiForm" class="form">
+          <div class="form-group">
+            <label for="baseUrl">Base URL</label>
+            <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1" required>
+            <span class="hint">OpenAI 兼容 API 的基础地址</span>
+          </div>
+
+          <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-..." required>
+            <button type="button" id="toggleApiKey" class="toggle-btn">显示</button>
+            <span class="hint">您的 API 密钥，仅存储在本地</span>
+          </div>
+
+          <div class="form-group">
+            <label for="model">模型</label>
+            <input type="text" id="model" placeholder="gpt-4o-mini" required>
+            <span class="hint">例如：gpt-4o, gpt-4o-mini, claude-3-sonnet 等</span>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">保存配置</button>
+            <span id="apiSaveStatus" class="save-status"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Prompts Tab -->
+      <section id="tab-prompts" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>提示词管理</h2>
+            <p class="tab-desc">创建和管理自定义提示词模板。</p>
+          </div>
+          <button id="addPromptBtn" class="btn btn-primary">+ 添加提示词</button>
+        </div>
+
+        <div class="variables-help">
+          <h4>📋 可用变量</h4>
+          <ul>
+            <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
+            <li><code>${text}</code> - 用户选中的文字</li>
+          </ul>
+        </div>
+
+        <div id="promptsList" class="prompts-list">
+          <!-- Prompts rendered here -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Prompt Edit Modal -->
+  <div id="promptModal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">添加提示词</h3>
+        <button id="closeModal" class="close-btn">&times;</button>
+      </div>
+      <form id="promptForm" class="form">
+        <input type="hidden" id="promptId">
+        <div class="form-group">
+          <label for="promptTitle">标题</label>
+          <input type="text" id="promptTitle" placeholder="例如：总结页面" required>
+        </div>
+        <div class="form-group">
+          <label for="promptContent">提示词内容</label>
+          <textarea id="promptContent" rows="8" placeholder="请输入提示词，可使用 ${html} 和 ${text} 变量" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="promptSort">排序</label>
+          <input type="number" id="promptSort" value="0" min="0">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelPrompt" class="btn">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="./options.ts"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartReader</title>
+  <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="title">SmartReader</h1>
+      <div class="header-actions">
+        <button id="markdownBtn" class="icon-btn" title="查看网页 Markdown">📄</button>
+        <button id="optionsBtn" class="icon-btn" title="设置">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Custom Prompt Input -->
+    <div class="custom-prompt-area">
+      <textarea
+        id="customPrompt"
+        class="custom-prompt-input"
+        rows="2"
+        placeholder="输入自定义指令，例如：总结这篇文章"
+      ></textarea>
+      <button id="customSendBtn" class="btn btn-primary btn-full">🚀 发送</button>
+    </div>
+
+    <!-- Saved Prompts Section -->
+    <div id="saved-prompts-section">
+      <div class="section-divider">
+        <span class="divider-line"></span>
+        <span class="divider-text">快捷提示词</span>
+        <span class="divider-line"></span>
+      </div>
+
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <span>加载中...</span>
+      </div>
+
+      <div id="error" class="error hidden"></div>
+
+      <div id="prompt-list" class="prompt-list">
+        <!-- Prompts will be rendered here -->
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <p>暂无提示词</p>
+        <button id="addPromptBtn" class="btn btn-primary">去添加</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

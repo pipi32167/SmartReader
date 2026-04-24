@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartReader - AI Response</title>
+  <link rel="stylesheet" href="./sidepanel.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-content">
+        <span class="logo">🤖 SmartReader</span>
+        <div class="header-right">
+          <button id="abortBtn" class="abort-btn hidden" title="中断生成">⏹ 中断</button>
+          <button id="copyBtn" class="copy-btn hidden" title="拷贝 Markdown">📋 拷贝 Markdown</button>
+          <div class="status" id="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="status-text" id="statusText">就绪</span>
+          </div>
+        </div>
+      </div>
+      <div id="promptPreview" class="prompt-preview hidden"></div>
+    </header>
+
+    <main class="main">
+      <div id="output" class="output">
+        <div class="welcome">
+          <h2>欢迎使用 SmartReader</h2>
+          <p>点击扩展图标，选择一个提示词来开始。</p>
+          <div class="tips">
+            <h3>💡 提示词变量</h3>
+            <ul>
+              <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
+              <li><code>${text}</code> - 选中的文字</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- loading removed -->
+  </div>
+
+  <script type="module" src="./sidepanel.ts"></script>
+</body>
+</html>

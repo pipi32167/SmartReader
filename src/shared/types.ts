@@ -1,0 +1,67 @@
+// API Configuration
+export interface ApiConfig {
+  id: number;
+  base_url: string;
+  api_key: string;
+  model: string;
+  updated_at: number;
+}
+
+// Prompt
+export interface Prompt {
+  id: number;
+  title: string;
+  prompt: string;
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
+// Page content extracted by content script
+export interface PageContent {
+  title: string;
+  url: string;
+  html: string;
+  text: string;
+}
+
+// Message types for communication between components
+export const MessageType = {
+  // Content script
+  GET_PAGE_CONTENT: 'GET_PAGE_CONTENT',
+
+  // Offscreen document
+  PING_OFFSCREEN: 'PING_OFFSCREEN',
+  OFFSCREEN_READY: 'OFFSCREEN_READY',
+  OFFSCREEN_HTML_LOADED: 'OFFSCREEN_HTML_LOADED',
+  DB_INIT: 'DB_INIT',
+  DB_QUERY: 'DB_QUERY',
+  DB_EXEC: 'DB_EXEC',
+
+  // Popup / Options → Service Worker
+  EXECUTE_PROMPT: 'EXECUTE_PROMPT',
+  SHOW_PAGE_MARKDOWN: 'SHOW_PAGE_MARKDOWN',
+  GET_PROMPTS: 'GET_PROMPTS',
+  SAVE_PROMPT: 'SAVE_PROMPT',
+  DELETE_PROMPT: 'DELETE_PROMPT',
+  GET_API_CONFIG: 'GET_API_CONFIG',
+  SAVE_API_CONFIG: 'SAVE_API_CONFIG',
+
+  // Side Panel → Service Worker
+  ABORT_STREAM: 'ABORT_STREAM',
+
+  // Service Worker → Side Panel
+  STREAM_START: 'STREAM_START',
+  STREAM_CHUNK: 'STREAM_CHUNK',
+  STREAM_COMPLETE: 'STREAM_COMPLETE',
+  STREAM_ERROR: 'STREAM_ERROR',
+  STREAM_ABORTED: 'STREAM_ABORTED',
+} as const;
+
+export type MessageTypeValue = typeof MessageType[keyof typeof MessageType];
+
+// Generic message shape
+export interface ExtensionMessage {
+  type: MessageTypeValue;
+  [key: string]: unknown;
+}
