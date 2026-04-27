@@ -93,6 +93,7 @@ async function handlePromptClick(promptId: number) {
       type: MessageType.EXECUTE_PROMPT,
       promptId,
       tabId: tab.id,
+      tabUrl: tab.url || '',
       windowId: tab.windowId
     });
     console.log('[Popup] EXECUTE_PROMPT sent successfully');
@@ -135,6 +136,7 @@ async function handleCustomSend() {
       type: MessageType.EXECUTE_PROMPT,
       promptTemplate,
       tabId: tab.id,
+      tabUrl: tab.url || '',
       windowId: tab.windowId
     });
     console.log('[Popup] Custom prompt sent successfully');
@@ -163,6 +165,7 @@ async function handleMarkdownClick() {
     await chrome.runtime.sendMessage({
       type: MessageType.SHOW_PAGE_MARKDOWN,
       tabId: tab.id,
+      tabUrl: tab.url || '',
       windowId: tab.windowId
     });
     console.log('[Popup] SHOW_PAGE_MARKDOWN sent successfully');

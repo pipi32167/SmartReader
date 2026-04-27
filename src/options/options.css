@@ -189,6 +189,28 @@ h2 {
   opacity: 1;
 }
 
+.test-status {
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.test-status.show {
+  opacity: 1;
+}
+
+.test-status.success {
+  color: #4caf50;
+}
+
+.test-status.error {
+  color: #c62828;
+}
+
+.test-status.testing {
+  color: #1a73e8;
+}
+
 /* Buttons */
 .btn {
   padding: 10px 20px;
@@ -222,6 +244,16 @@ h2 {
 
 .btn-danger:hover {
   background: #ffcdd2;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #555;
+  border: 1px solid #d0d0d0;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
 }
 
 /* Section Header */

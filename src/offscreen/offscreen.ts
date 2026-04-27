@@ -1,6 +1,10 @@
 import initSqlJs from 'sql.js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { MessageType } from '../shared/types';
 import { DB_FILENAME } from '../shared/constants';
+
+// pdfjs-dist tries to spawn a Web Worker by default. Disable it and parse on the main thread.
+pdfjsLib.GlobalWorkerOptions.disableWorker = true;
 
 let db: any = null;
 let SQL: any = null;
@@ -141,6 +145,7 @@ const OFFSCREEN_MESSAGE_TYPES = new Set([
   MessageType.PING_OFFSCREEN,
   MessageType.DB_QUERY,
   MessageType.DB_EXEC,
+  MessageType.EXTRACT_PDF_TEXT,
 ]);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -182,6 +187,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: true });
           }
           break;
+
+        case MessageType.EXTRACT_PDF_TEXT: {
+          const base64 = message.base64 as string;
+          try {
+            const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+            const parts: string[] = [];
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              const pageText = content.items
+                .map((item: any) => item.str)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (pageText) parts.push(pageText);
+            }
+            sendResponse({ success: true, text: parts.join('\n\n') });
+          } catch (error: any) {
+            console.error('[Offscreen] PDF text extraction failed:', error);
+            sendResponse({ success: false, error: error.message || 'PDF 文本提取失败' });
+          }
+          break;
+        }
       }
     } catch (error: any) {
       console.error('[Offscreen] Error handling message:', error);

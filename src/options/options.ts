@@ -14,6 +14,7 @@ function init() {
   setupApiForm();
   setupPromptModal();
   setupApiKeyToggle();
+  setupTestApiButton();
 
   loadApiConfig();
   loadPrompts();
@@ -114,6 +115,54 @@ function showSaveStatus(elementId: string, message: string, isError = false) {
   el.style.color = isError ? '#c62828' : '#4caf50';
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function showTestStatus(message: string, status: 'testing' | 'success' | 'error') {
+  const el = document.getElementById('apiTestStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'test-status show ' + status;
+  if (status !== 'testing') {
+    setTimeout(() => el.classList.remove('show'), 5000);
+  }
+}
+
+function setupTestApiButton() {
+  const btn = document.getElementById('testApiBtn');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    const baseUrl = (document.getElementById('baseUrl') as HTMLInputElement).value.trim();
+    const apiKey = (document.getElementById('apiKey') as HTMLInputElement).value.trim();
+    const model = (document.getElementById('model') as HTMLInputElement).value.trim();
+
+    if (!baseUrl || !apiKey || !model) {
+      showTestStatus('请填写完整的 API 配置信息', 'error');
+      return;
+    }
+
+    showTestStatus('正在测试连接...', 'testing');
+    btn.setAttribute('disabled', 'true');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: MessageType.TEST_API_CONNECTION,
+        baseUrl,
+        apiKey,
+        model
+      });
+
+      if (response.success) {
+        showTestStatus('连接成功！API 配置可用', 'success');
+      } else {
+        showTestStatus('连接失败：' + (response.error || '未知错误'), 'error');
+      }
+    } catch (error: any) {
+      showTestStatus('测试失败：' + (error.message || '无法连接到后台服务'), 'error');
+    } finally {
+      btn.removeAttribute('disabled');
+    }
+  });
 }
 
 // ============================================================================
