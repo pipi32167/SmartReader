@@ -84,7 +84,7 @@ function handleMessage(message: any) {
 }
 
 function handleStreamStart(promptPreview?: string) {
-  console.log('[SidePanel] STREAM_START');
+  console.log('[SidePanel] STREAM_START, preview:', promptPreview);
   isStreaming = true;
   accumulatedContent = '';
 
@@ -163,6 +163,7 @@ function handleStreamError(error: string) {
 
   hideAbortButton();
   hideCopyButton();
+  hidePromptPreview();
 }
 
 function handleStreamAborted() {

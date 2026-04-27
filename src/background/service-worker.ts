@@ -688,7 +688,7 @@ async function executePrompt(
     await new Promise(r => setTimeout(r, 1500));
     // Pass the substituted prompt as preview so side panel shows real content
     const preview = finalPrompt.length > 200 ? finalPrompt.slice(0, 200) + '...' : finalPrompt;
-    console.log('[Service Worker] Starting AI stream...');
+    console.log('[Service Worker] Starting AI stream, preview:', preview);
     await streamAIResponse(finalPrompt, apiConfig, windowId, preview, pdfBase64);
   } catch (error: any) {
     console.error('[Service Worker] Execute prompt outer catch:', error);
