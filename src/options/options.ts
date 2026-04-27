@@ -6,6 +6,30 @@ let prompts: Prompt[] = [];
 let editingPromptId: number | null = null;
 
 // ============================================================================
+// LLM Provider Presets
+// ============================================================================
+
+interface ProviderPreset {
+  name: string;
+  baseUrl: string;
+  model: string;
+}
+
+const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
+  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', model: 'claude-3-5-sonnet-20241022' },
+  gemini: { name: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/', model: 'gemini-1.5-flash' },
+  deepseek: { name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  moonshot: { name: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+  glm: { name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/', model: 'glm-4-flash' },
+  qwen: { name: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-turbo' },
+  doubao: { name: '豆包', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-pro-32k' },
+  minimax: { name: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat' },
+  groq: { name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama3-8b-8192' },
+  mistral: { name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest' },
+};
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
@@ -15,6 +39,7 @@ function init() {
   setupPromptModal();
   setupApiKeyToggle();
   setupTestApiButton();
+  setupProviderSelect();
 
   loadApiConfig();
   loadPrompts();
@@ -161,6 +186,31 @@ function setupTestApiButton() {
       showTestStatus('测试失败：' + (error.message || '无法连接到后台服务'), 'error');
     } finally {
       btn.removeAttribute('disabled');
+    }
+  });
+}
+
+function setupProviderSelect() {
+  const select = document.getElementById('providerSelect') as HTMLSelectElement;
+  const baseUrlInput = document.getElementById('baseUrl') as HTMLInputElement;
+  const modelInput = document.getElementById('model') as HTMLInputElement;
+  if (!select || !baseUrlInput || !modelInput) return;
+
+  select.addEventListener('change', () => {
+    const key = select.value;
+    if (!key || key === 'custom') return;
+
+    const preset = PROVIDER_PRESETS[key];
+    if (preset) {
+      baseUrlInput.value = preset.baseUrl;
+      modelInput.value = preset.model;
+      // Visual feedback
+      baseUrlInput.classList.add('auto-filled');
+      modelInput.classList.add('auto-filled');
+      setTimeout(() => {
+        baseUrlInput.classList.remove('auto-filled');
+        modelInput.classList.remove('auto-filled');
+      }, 800);
     }
   });
 }

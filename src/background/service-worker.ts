@@ -686,8 +686,8 @@ async function executePrompt(
     // 3. Wait for side panel to fully load before sending stream messages
     console.log('[Service Worker] Step 3: Waiting for side panel to load...');
     await new Promise(r => setTimeout(r, 1500));
-    // Pass the original template (before variable substitution) as preview
-    const preview = template.length > 200 ? template.slice(0, 200) + '...' : template;
+    // Pass the substituted prompt as preview so side panel shows real content
+    const preview = finalPrompt.length > 200 ? finalPrompt.slice(0, 200) + '...' : finalPrompt;
     console.log('[Service Worker] Starting AI stream...');
     await streamAIResponse(finalPrompt, apiConfig, windowId, preview, pdfBase64);
   } catch (error: any) {

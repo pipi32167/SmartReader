@@ -31,6 +31,26 @@
 
         <form id="apiForm" class="form">
           <div class="form-group">
+            <label for="providerSelect">API 提供商</label>
+            <select id="providerSelect" class="form-select">
+              <option value="">— 请选择或手动填写 —</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="moonshot">Moonshot (Kimi)</option>
+              <option value="glm">智谱 GLM</option>
+              <option value="qwen">通义千问 (Qwen)</option>
+              <option value="doubao">豆包 (火山引擎)</option>
+              <option value="minimax">MiniMax</option>
+              <option value="groq">Groq</option>
+              <option value="mistral">Mistral</option>
+              <option value="custom">自定义</option>
+            </select>
+            <span class="hint">选择后自动填充 Base URL 和推荐模型</span>
+          </div>
+
+          <div class="form-group">
             <label for="baseUrl">Base URL</label>
             <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1" required>
             <span class="hint">OpenAI 兼容 API 的基础地址</span>
