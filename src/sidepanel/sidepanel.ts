@@ -69,7 +69,7 @@ function handleMessage(message: any) {
 
   switch (message.type) {
     case MessageType.STREAM_START:
-      handleStreamStart(message.promptPreview, message.isFollowUp);
+      handleStreamStart(message.promptPreview, message.isFollowUp, message.userMessage);
       break;
 
     case MessageType.STREAM_CHUNK:
@@ -95,7 +95,7 @@ function handleMessage(message: any) {
   }
 }
 
-function handleStreamStart(promptPreview?: string, isFollowUp?: boolean) {
+function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMessage?: string) {
   console.log('[SidePanel] STREAM_START, preview:', promptPreview, 'isFollowUp:', isFollowUp);
   isStreaming = true;
 
@@ -116,6 +116,14 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean) {
     turnDiv.className = 'turn';
     turnDiv.innerHTML = `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
     conversationLog.appendChild(turnDiv);
+  }
+
+  // Show user follow-up message
+  if (isFollowUp && userMessage && conversationLog) {
+    const userDiv = document.createElement('div');
+    userDiv.className = 'turn user-turn';
+    userDiv.textContent = userMessage;
+    conversationLog.appendChild(userDiv);
   }
 
   accumulatedContent = '';

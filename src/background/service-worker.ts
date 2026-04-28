@@ -527,11 +527,13 @@ async function streamAIResponse(
   // Notify side panel that stream is starting
   console.log('[Service Worker] Sending STREAM_START to window', windowId);
   try {
+    const lastMsg = state.messages[state.messages.length - 1];
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_START,
       windowId,
       promptPreview,
-      isFollowUp
+      isFollowUp,
+      userMessage: isFollowUp && lastMsg.role === 'user' ? lastMsg.content : undefined
     });
     console.log('[Service Worker] STREAM_START sent');
   } catch (e: any) {
