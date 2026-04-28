@@ -1,6 +1,6 @@
 import { marked } from 'marked';
 import { MessageType } from '../shared/types';
-import { debounce } from '../shared/utils';
+import { debounce, truncate } from '../shared/utils';
 
 let accumulatedContent = '';
 let isStreaming = false;
@@ -11,6 +11,7 @@ const messageBuffer: any[] = [];
 // History view state
 let currentView: 'output' | 'history-list' | 'history-detail' = 'output';
 let currentHistoryId: number | null = null;
+let currentHistorySupportsFollowUp = false;
 
 function init() {
   console.log('[SidePanel] init() called');
@@ -24,6 +25,7 @@ function init() {
     MessageType.STREAM_COMPLETE,
     MessageType.STREAM_ERROR,
     MessageType.STREAM_ABORTED,
+    MessageType.SHOW_HISTORY_VIEW,
   ]);
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -67,7 +69,7 @@ function handleMessage(message: any) {
 
   switch (message.type) {
     case MessageType.STREAM_START:
-      handleStreamStart(message.promptPreview);
+      handleStreamStart(message.promptPreview, message.isFollowUp);
       break;
 
     case MessageType.STREAM_CHUNK:
@@ -85,21 +87,46 @@ function handleMessage(message: any) {
     case MessageType.STREAM_ABORTED:
       handleStreamAborted();
       break;
+
+    case MessageType.SHOW_HISTORY_VIEW:
+      showView('history-list');
+      loadHistoryList();
+      break;
   }
 }
 
-function handleStreamStart(promptPreview?: string) {
-  console.log('[SidePanel] STREAM_START, preview:', promptPreview);
+function handleStreamStart(promptPreview?: string, isFollowUp?: boolean) {
+  console.log('[SidePanel] STREAM_START, preview:', promptPreview, 'isFollowUp:', isFollowUp);
   isStreaming = true;
+
+  // Auto-switch to output view when a stream starts
+  showView('output');
+
+  const conversationLog = document.getElementById('conversationLog');
+  const currentResponse = document.getElementById('currentResponse');
+
+  // New conversation: clear log
+  if (!isFollowUp && conversationLog) {
+    conversationLog.innerHTML = '';
+  }
+
+  // Archive previous turn if follow-up
+  if (isFollowUp && accumulatedContent && conversationLog) {
+    const turnDiv = document.createElement('div');
+    turnDiv.className = 'turn';
+    turnDiv.innerHTML = `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    conversationLog.appendChild(turnDiv);
+  }
+
   accumulatedContent = '';
 
-  const output = document.getElementById('output');
-  if (output) {
-    output.innerHTML = '<div class="streaming-text"><span id="stream-content"></span><span class="cursor"></span></div>';
+  if (currentResponse) {
+    currentResponse.innerHTML = '<div class="streaming-text"><span id="stream-content"></span><span class="cursor"></span></div>';
   }
 
   showAbortButton();
   hideCopyButton();
+  hideFollowUpArea();
   updateStatus('active', 'AI 生成中...');
 
   if (promptPreview) {
@@ -131,6 +158,7 @@ function handleStreamComplete() {
   renderAccumulatedContent();
   hideAbortButton();
   showCopyButton();
+  showFollowUpArea();
   scrollToBottom();
 }
 
@@ -155,19 +183,20 @@ function handleStreamError(error: string) {
   isStreaming = false;
   updateStatus('error', '出错');
 
-  const output = document.getElementById('output');
-  if (output) {
-    output.innerHTML = `
+  const currentResponse = document.getElementById('currentResponse');
+  if (currentResponse) {
+    currentResponse.innerHTML = `
       <div class="error-message">
         <h3>❌ 出错了</h3>
         <p>${escapeHtml(error)}</p>
       </div>
-      ${accumulatedContent ? `<div class="markdown-content">${marked.parse(accumulatedContent, { async: false })}</div>` : ''}
+      ${accumulatedContent ? `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>` : ''}
     `;
   }
 
   hideAbortButton();
   hideCopyButton();
+  hideFollowUpArea();
   hidePromptPreview();
 }
 
@@ -179,18 +208,14 @@ function handleStreamAborted() {
   renderAccumulatedContent();
   hideAbortButton();
   showCopyButton();
+  showFollowUpArea();
   scrollToBottom();
 }
 
 function renderAccumulatedContent() {
-  const output = document.getElementById('output');
-  if (output && accumulatedContent) {
-    try {
-      const html = marked.parse(accumulatedContent, { async: false }) as string;
-      output.innerHTML = `<div class="markdown-content">${html}</div>`;
-    } catch (error) {
-      output.innerHTML = `<div class="streaming-text">${escapeHtml(accumulatedContent)}</div>`;
-    }
+  const currentResponse = document.getElementById('currentResponse');
+  if (currentResponse && accumulatedContent) {
+    currentResponse.innerHTML = `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
   }
 }
 
@@ -250,6 +275,77 @@ function hideAbortButton() {
   }
 }
 
+function showFollowUpArea() {
+  const area = document.getElementById('followUpArea');
+  if (area) {
+    area.classList.remove('hidden');
+  }
+}
+
+function hideFollowUpArea() {
+  const area = document.getElementById('followUpArea');
+  if (area) {
+    area.classList.add('hidden');
+  }
+}
+
+function hasActiveConversation(): boolean {
+  const conversationLog = document.getElementById('conversationLog');
+  return accumulatedContent.length > 0 || (conversationLog !== null && conversationLog.children.length > 0);
+}
+
+async function handleFollowUpSend() {
+  const input = document.getElementById('followUpInput') as HTMLTextAreaElement | null;
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.disabled = true;
+
+  try {
+    const win = await chrome.windows.getCurrent();
+    const payload: any = {
+      type: MessageType.SEND_FOLLOW_UP,
+      text,
+      windowId: win.id
+    };
+    if (currentView === 'history-detail' && currentHistoryId !== null) {
+      payload.historyId = currentHistoryId;
+    }
+    const response = await chrome.runtime.sendMessage(payload);
+    if (!response?.success) {
+      // Show error in current response
+      if (currentView === 'history-detail') {
+        showView('output');
+      }
+      const currentResponse = document.getElementById('currentResponse');
+      if (currentResponse) {
+        currentResponse.innerHTML = `
+          <div class="error-message">
+            <h3>❌ 无法发送追问</h3>
+            <p>${escapeHtml(response?.error || '未知错误')}</p>
+          </div>
+        `;
+      }
+      hideFollowUpArea();
+    }
+  } catch (err) {
+    console.error('[SidePanel] Follow-up send failed:', err);
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+function handleFollowUpKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleFollowUpSend();
+  }
+}
+
 async function handleAbortClick() {
   if (!isStreaming) return;
 
@@ -302,6 +398,15 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+function renderMarkdown(content: string): string {
+  if (!content) return '';
+  try {
+    return marked.parse(content, { async: false }) as string;
+  } catch {
+    return `<div class="streaming-text">${escapeHtml(content)}</div>`;
+  }
+}
+
 // ============================================================================
 // History Views
 // ============================================================================
@@ -315,6 +420,18 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
   if (output) output.classList.toggle('hidden', view !== 'output');
   if (historyListView) historyListView.classList.toggle('hidden', view !== 'history-list');
   if (historyDetailView) historyDetailView.classList.toggle('hidden', view !== 'history-detail');
+
+  // Update follow-up area visibility
+  const followUpArea = document.getElementById('followUpArea');
+  if (followUpArea) {
+    let shouldShow = false;
+    if (view === 'output') {
+      shouldShow = !isStreaming && hasActiveConversation();
+    } else if (view === 'history-detail') {
+      shouldShow = !isStreaming && currentHistorySupportsFollowUp;
+    }
+    followUpArea.classList.toggle('hidden', !shouldShow);
+  }
 }
 
 async function loadHistoryList(keyword?: string) {
@@ -354,15 +471,19 @@ function renderHistoryList(items: any[]) {
 
   if (emptyEl) emptyEl.classList.add('hidden');
 
-  listEl.innerHTML = items.map(item => `
+  listEl.innerHTML = items.map(item => {
+    const promptPreview = item.prompt ? truncate(item.prompt, 120) : '';
+    return `
     <div class="history-item" data-id="${item.id}">
       <div class="history-item-title">${escapeHtml(item.title || '未命名')}</div>
+      ${promptPreview ? `<div class="history-item-prompt">${escapeHtml(promptPreview)}</div>` : ''}
       <div class="history-item-meta">
         <span class="history-item-url">${escapeHtml(item.url || '')}</span>
         <span>${formatDate(item.created_at)}</span>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   listEl.querySelectorAll('.history-item').forEach(el => {
     el.addEventListener('click', () => {
@@ -385,16 +506,35 @@ async function showHistoryDetail(id: number) {
     const response = await chrome.runtime.sendMessage({ type: MessageType.GET_HISTORY_DETAIL, id });
     if (response?.success && response.data) {
       const item = response.data;
+      currentHistorySupportsFollowUp = !!item.messages;
+      // Only show prompt in meta when there is no conversation thread (old records)
+      const promptDisplay = !item.messages && item.prompt ? truncate(item.prompt, 200) : '';
       metaEl.innerHTML = `
         <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
         ${item.url ? `<div class="history-meta-url">${escapeHtml(item.url)}</div>` : ''}
+        ${promptDisplay ? `<div class="history-meta-prompt">${escapeHtml(promptDisplay)}</div>` : ''}
         <div class="history-meta-time">${formatDate(item.created_at)}</div>
       `;
-      try {
-        const html = marked.parse(item.response || '', { async: false }) as string;
-        contentEl.innerHTML = html;
-      } catch {
-        contentEl.innerHTML = `<div class="streaming-text">${escapeHtml(item.response || '')}</div>`;
+
+      if (item.messages) {
+        try {
+          const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
+          let html = '<div class="conversation-thread">';
+          for (const msg of messages) {
+            if (msg.role === 'user') {
+              const userContent = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
+              html += `<div class="turn user-turn" title="${escapeHtml(msg.content)}">${escapeHtml(userContent)}</div>`;
+            } else if (msg.role === 'assistant') {
+              html += `<div class="turn"><div class="markdown-content">${renderMarkdown(msg.content)}</div></div>`;
+            }
+          }
+          html += '</div>';
+          contentEl.innerHTML = html;
+        } catch {
+          contentEl.innerHTML = `<div class="markdown-content">${renderMarkdown(item.response || '')}</div>`;
+        }
+      } else {
+        contentEl.innerHTML = `<div class="markdown-content">${renderMarkdown(item.response || '')}</div>`;
       }
     } else {
       contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
@@ -492,6 +632,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
     historySearch.addEventListener('input', () => {
       debouncedSearch(historySearch.value);
+    });
+  }
+
+  // Follow-up input
+  const followUpSendBtn = document.getElementById('followUpSendBtn');
+  const followUpInput = document.getElementById('followUpInput') as HTMLTextAreaElement | null;
+  if (followUpSendBtn) {
+    followUpSendBtn.addEventListener('click', handleFollowUpSend);
+  }
+  if (followUpInput) {
+    followUpInput.addEventListener('keydown', handleFollowUpKeydown);
+    // Auto-resize textarea
+    followUpInput.addEventListener('input', () => {
+      followUpInput.style.height = 'auto';
+      followUpInput.style.height = followUpInput.scrollHeight + 'px';
     });
   }
 });

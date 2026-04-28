@@ -25,6 +25,12 @@ export interface PageContent {
   text: string;
 }
 
+// Conversation message
+export interface ConversationMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 // History record
 export interface HistoryItem {
   id: number;
@@ -32,7 +38,9 @@ export interface HistoryItem {
   url: string;
   prompt: string;
   response: string;
+  messages?: string;
   created_at: number;
+  updated_at?: number;
 }
 
 // Message types for communication between components
@@ -67,6 +75,7 @@ export const MessageType = {
 
   // Side Panel → Service Worker
   ABORT_STREAM: 'ABORT_STREAM',
+  SEND_FOLLOW_UP: 'SEND_FOLLOW_UP',
 
   // Service Worker → Side Panel
   STREAM_START: 'STREAM_START',
@@ -74,6 +83,9 @@ export const MessageType = {
   STREAM_COMPLETE: 'STREAM_COMPLETE',
   STREAM_ERROR: 'STREAM_ERROR',
   STREAM_ABORTED: 'STREAM_ABORTED',
+
+  // Popup → Side Panel
+  SHOW_HISTORY_VIEW: 'SHOW_HISTORY_VIEW',
 } as const;
 
 export type MessageTypeValue = typeof MessageType[keyof typeof MessageType];

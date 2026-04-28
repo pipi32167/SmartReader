@@ -55,6 +55,11 @@ async function initDatabase(): Promise<void> {
     initializeSchema();
     console.log('[Offscreen] Schema initialized');
 
+    // Migrate history table if needed
+    console.log('[Offscreen] Checking history table migration...');
+    await migrateHistoryTable();
+    console.log('[Offscreen] History migration check complete');
+
     // Insert default data if needed
     console.log('[Offscreen] Checking default data...');
     await ensureDefaults();
@@ -98,7 +103,9 @@ function initializeSchema(): void {
       url TEXT,
       prompt TEXT,
       response TEXT NOT NULL,
-      created_at INTEGER
+      messages TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
     );
   `);
 }
@@ -132,6 +139,26 @@ async function ensureDefaults(): Promise<void> {
       ['解释选中内容', '请解释以下内容：\n\n${text}', 1, Date.now(), Date.now()]
     );
     await persistDatabase();
+  }
+}
+
+async function migrateHistoryTable(): Promise<void> {
+  if (!db) return;
+  try {
+    const result = db.exec('PRAGMA table_info(history)');
+    if (!result || result.length === 0) return;
+    const columns = result[0].values.map((row: any[]) => row[1] as string);
+    if (!columns.includes('messages')) {
+      db.run('ALTER TABLE history ADD COLUMN messages TEXT');
+      console.log('[Offscreen] Added messages column to history');
+    }
+    if (!columns.includes('updated_at')) {
+      db.run('ALTER TABLE history ADD COLUMN updated_at INTEGER');
+      console.log('[Offscreen] Added updated_at column to history');
+    }
+    await persistDatabase();
+  } catch (error: any) {
+    console.error('[Offscreen] History migration failed:', error);
   }
 }
 

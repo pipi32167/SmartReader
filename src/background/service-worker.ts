@@ -5,14 +5,17 @@ import { MAX_CONTENT_LENGTH } from '../shared/constants';
 let offscreenReady = false;
 let pendingEnsure: Promise<void> | null = null;
 
-// Active stream abort controllers keyed by windowId
-const activeStreams = new Map<number, AbortController>();
+interface ConversationState {
+  historyId: number | null;
+  title: string;
+  url: string;
+  prompt: string;
+  messages: Array<{ role: string; content: string }>;
+  abortController: AbortController | null;
+  apiConfig: ApiConfig;
+}
 
-// Session metadata keyed by windowId (for history saving)
-const sessionInfo = new Map<number, { title: string; url: string; prompt: string }>();
-
-// Accumulated response content keyed by windowId
-const windowResponses = new Map<number, string>();
+const conversations = new Map<number, ConversationState>();
 
 // ============================================================================
 // Offscreen Document Management
@@ -218,15 +221,28 @@ async function getPromptById(id: number): Promise<Prompt | null> {
 // History
 // ============================================================================
 
-async function saveHistory(windowId: number, response: string): Promise<void> {
-  const info = sessionInfo.get(windowId);
-  if (!info) return;
+async function saveOrUpdateHistory(windowId: number, response: string): Promise<void> {
+  const state = conversations.get(windowId);
+  if (!state) return;
   const now = Date.now();
+
+  const firstUserMessage = state.messages.find(m => m.role === 'user');
+  const promptText = typeof firstUserMessage?.content === 'string' ? firstUserMessage.content : state.prompt;
+
   try {
-    await dbExec(
-      'INSERT INTO history (title, url, prompt, response, created_at) VALUES (?, ?, ?, ?, ?)',
-      [info.title, info.url, info.prompt, response, now]
-    );
+    if (state.historyId) {
+      await dbExec(
+        'UPDATE history SET title = ?, url = ?, prompt = ?, response = ?, messages = ?, updated_at = ? WHERE id = ?',
+        [state.title, state.url, promptText, response, JSON.stringify(state.messages), now, state.historyId]
+      );
+    } else {
+      await dbExec(
+        'INSERT INTO history (title, url, prompt, response, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [state.title, state.url, promptText, response, JSON.stringify(state.messages), now, now]
+      );
+      const result = await dbQuery('SELECT last_insert_rowid() as id');
+      state.historyId = result[0]?.values[0][0] ?? null;
+    }
     console.log('[Service Worker] History saved for window', windowId);
   } catch (error: any) {
     console.error('[Service Worker] Failed to save history:', error);
@@ -266,14 +282,14 @@ async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<s
 }
 
 async function getHistoryList(limit: number = 100, keyword?: string): Promise<any[]> {
-  let sql = 'SELECT id, title, url, prompt, created_at FROM history';
+  let sql = 'SELECT id, title, url, prompt, created_at, updated_at FROM history';
   const params: unknown[] = [];
   if (keyword && keyword.trim()) {
     const pattern = `%${keyword.trim()}%`;
     sql += ' WHERE (title LIKE ? OR url LIKE ? OR prompt LIKE ?)';
     params.push(pattern, pattern, pattern);
   }
-  sql += ' ORDER BY created_at DESC LIMIT ?';
+  sql += ' ORDER BY COALESCE(updated_at, created_at) DESC LIMIT ?';
   params.push(limit);
   const result = await dbQuery(sql, params);
   if (!result || result.length === 0) return [];
@@ -449,8 +465,9 @@ async function extractPdfTextViaOffscreen(arrayBuffer: ArrayBuffer): Promise<str
 
 /**
  * Read chunks from a streaming response and forward them to the side panel.
+ * Returns the full accumulated content.
  */
-async function readStreamChunks(response: Response, windowId: number): Promise<void> {
+async function readStreamChunks(response: Response, windowId: number): Promise<string> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -491,27 +508,30 @@ async function readStreamChunks(response: Response, windowId: number): Promise<v
   }
 
   console.log('[Service Worker] Stream complete, total chunks:', chunkCount);
-  windowResponses.set(windowId, fullContent);
-  await chrome.runtime.sendMessage({
-    type: MessageType.STREAM_COMPLETE,
-    windowId
-  });
+  return fullContent;
 }
 
 async function streamAIResponse(
-  prompt: string,
-  apiConfig: ApiConfig,
   windowId: number,
   promptPreview?: string,
   pdfBase64?: { filename: string; data: string }
 ): Promise<void> {
+  const state = conversations.get(windowId);
+  if (!state) {
+    console.error('[Service Worker] No conversation state for window', windowId);
+    return;
+  }
+
+  const isFollowUp = state.messages.filter(m => m.role === 'user').length > 1;
+
   // Notify side panel that stream is starting
   console.log('[Service Worker] Sending STREAM_START to window', windowId);
   try {
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_START,
       windowId,
-      promptPreview
+      promptPreview,
+      isFollowUp
     });
     console.log('[Service Worker] STREAM_START sent');
   } catch (e: any) {
@@ -519,23 +539,45 @@ async function streamAIResponse(
   }
 
   const controller = new AbortController();
-  activeStreams.set(windowId, controller);
+  state.abortController = controller;
   const timeout = setTimeout(() => controller.abort(), 60000);
 
-  async function doFetch(userMessage: any): Promise<Response> {
-    const baseUrl = apiConfig.base_url.replace(/\/$/, '');
+  async function doFetch(): Promise<Response> {
+    const baseUrl = state.apiConfig.base_url.replace(/\/$/, '');
+
+    // Build messages for API request
+    const apiMessages = state.messages.map(m => ({ role: m.role, content: m.content }));
+
+    // If PDF and last message is user, replace with file content type
+    if (pdfBase64) {
+      const lastIdx = apiMessages.length - 1;
+      const lastMsg = apiMessages[lastIdx];
+      if (lastMsg.role === 'user') {
+        apiMessages[lastIdx] = {
+          role: 'user',
+          content: [
+            { type: 'text', text: lastMsg.content },
+            {
+              type: 'file',
+              file: {
+                filename: pdfBase64.filename,
+                file_data: `data:application/pdf;base64,${pdfBase64.data}`
+              }
+            }
+          ]
+        } as any;
+      }
+    }
+
     return fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.api_key}`
+        'Authorization': `Bearer ${state.apiConfig.api_key}`
       },
       body: JSON.stringify({
-        model: apiConfig.model,
-        messages: [
-          { role: 'system', content: 'You are a helpful assistant. Please respond in the same language as the user query.' },
-          userMessage
-        ],
+        model: state.apiConfig.model,
+        messages: apiMessages,
         stream: true
       }),
       signal: controller.signal
@@ -543,28 +585,9 @@ async function streamAIResponse(
   }
 
   try {
-    console.log('[Service Worker] Calling AI API at', apiConfig.base_url);
+    console.log('[Service Worker] Calling AI API at', state.apiConfig.base_url);
 
-    let userMessage: any;
-    if (pdfBase64) {
-      userMessage = {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          {
-            type: 'file',
-            file: {
-              filename: pdfBase64.filename,
-              file_data: `data:application/pdf;base64,${pdfBase64.data}`
-            }
-          }
-        ]
-      };
-    } else {
-      userMessage = { role: 'user', content: prompt };
-    }
-
-    let response = await doFetch(userMessage);
+    let response = await doFetch();
 
     // Fallback: if the API does not support 'file' content parts, extract text from the PDF and retry
     if (!response.ok && pdfBase64) {
@@ -586,9 +609,13 @@ async function streamAIResponse(
             windowId
           });
 
-          const fallbackPrompt = prompt + '\n\n[PDF 文件：' + pdfBase64.filename + ']\n\n' + extractedText;
-          userMessage = { role: 'user', content: fallbackPrompt };
-          response = await doFetch(userMessage);
+          // Update the last user message in state with extracted text
+          const lastIdx = state.messages.length - 1;
+          if (state.messages[lastIdx].role === 'user') {
+            state.messages[lastIdx].content = state.prompt + '\n\n[PDF 文件：' + pdfBase64.filename + ']\n\n' + extractedText;
+          }
+
+          response = await doFetch();
         } catch (extractError: any) {
           console.error('[Service Worker] PDF fallback extraction failed:', extractError);
           throw new Error('当前 API 不支持 PDF 文件解析，且无法提取 PDF 文本内容。请使用支持 file 类型的 API（如 OpenAI 官方 API），或尝试普通网页。');
@@ -603,7 +630,23 @@ async function streamAIResponse(
       throw new Error(`API error ${response.status}: ${errorText}`);
     }
 
-    await readStreamChunks(response, windowId);
+    const fullContent = await readStreamChunks(response, windowId);
+
+    // Append assistant message to state
+    state.messages.push({ role: 'assistant', content: fullContent });
+
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_COMPLETE,
+      windowId
+    });
+
+    // Generate title and save/update history
+    const generatedTitle = await generateAITitle(state.apiConfig, fullContent);
+    if (generatedTitle) {
+      state.title = generatedTitle;
+      console.log('[Service Worker] AI title generated:', generatedTitle);
+    }
+    await saveOrUpdateHistory(windowId, fullContent);
   } catch (error: any) {
     clearTimeout(timeout);
     if (error.name === 'AbortError') {
@@ -621,22 +664,7 @@ async function streamAIResponse(
       });
     }
   } finally {
-    activeStreams.delete(windowId);
-    // Save history only when stream completed successfully (windowResponses has content)
-    const response = windowResponses.get(windowId);
-    if (response && sessionInfo.has(windowId)) {
-      // Try to generate a better AI title before saving
-      const generatedTitle = await generateAITitle(apiConfig, response);
-      if (generatedTitle) {
-        const info = sessionInfo.get(windowId)!;
-        info.title = generatedTitle;
-        sessionInfo.set(windowId, info);
-        console.log('[Service Worker] AI title generated:', generatedTitle);
-      }
-      await saveHistory(windowId, response);
-    }
-    sessionInfo.delete(windowId);
-    windowResponses.delete(windowId);
+    state.abortController = null;
   }
 }
 
@@ -664,6 +692,7 @@ async function executePrompt(
     let finalPrompt: string;
     let pdfBase64: { filename: string; data: string } | undefined;
     let template: string;
+    let pageContent: PageContent | undefined;
 
     // 1. Get page content (HTML) or fetch PDF
     if (isPdf && pdfUrl) {
@@ -713,11 +742,7 @@ async function executePrompt(
         .replace(/\$\{html\}/g, `（以下是一份 PDF 文件：${tabUrl}）`)
         .replace(/\$\{text\}/g, '(未选中文字)');
       console.log('[Service Worker] PDF prompt length:', finalPrompt.length);
-      sessionInfo.set(windowId, {
-        title: pdfBase64?.filename || 'PDF 文件',
-        url: tabUrl || '',
-        prompt: finalPrompt
-      });
+      // Conversation state will be created after API config is loaded
     } else {
       // Normal HTML page flow
       console.log('[Service Worker] Step 1: Ensuring content script in tab', tabId);
@@ -733,7 +758,6 @@ async function executePrompt(
       }
 
       console.log('[Service Worker] Getting page content from tab', tabId);
-      let pageContent: PageContent;
       try {
         const response = await chrome.tabs.sendMessage(tabId, {
           type: MessageType.GET_PAGE_CONTENT
@@ -786,11 +810,7 @@ async function executePrompt(
         .replace(/\$\{html\}/g, pageContent.html.substring(0, MAX_CONTENT_LENGTH))
         .replace(/\$\{text\}/g, pageContent.text || '(未选中文字)');
       console.log('[Service Worker] Final prompt length:', finalPrompt.length);
-      sessionInfo.set(windowId, {
-        title: pageContent.title || '未命名页面',
-        url: tabUrl || '',
-        prompt: finalPrompt
-      });
+      // Conversation state will be created after API config is loaded
     }
 
     // 2. Get API config
@@ -818,7 +838,24 @@ async function executePrompt(
     // Pass the substituted prompt as preview so side panel shows real content
     const preview = finalPrompt.length > 200 ? finalPrompt.slice(0, 200) + '...' : finalPrompt;
     console.log('[Service Worker] Starting AI stream, preview:', preview);
-    await streamAIResponse(finalPrompt, apiConfig, windowId, preview, pdfBase64);
+
+    // Create conversation state
+    conversations.delete(windowId);
+    const state: ConversationState = {
+      historyId: null,
+      title: isPdf ? (pdfBase64?.filename || 'PDF 文件') : (pageContent?.title || '未命名页面'),
+      url: tabUrl || '',
+      prompt: finalPrompt,
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant. Please respond in the same language as the user query.' },
+        { role: 'user', content: finalPrompt }
+      ],
+      abortController: null,
+      apiConfig
+    };
+    conversations.set(windowId, state);
+
+    await streamAIResponse(windowId, preview, pdfBase64);
   } catch (error: any) {
     console.error('[Service Worker] Execute prompt outer catch:', error);
     try {
@@ -1046,14 +1083,61 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         case MessageType.ABORT_STREAM: {
           const { windowId } = message as any;
           console.log('[Service Worker] Received ABORT_STREAM for window', windowId);
-          const controller = activeStreams.get(windowId);
-          if (controller) {
-            controller.abort();
-            activeStreams.delete(windowId);
+          const state = conversations.get(windowId);
+          if (state?.abortController) {
+            state.abortController.abort();
+            state.abortController = null;
             sendResponse({ success: true });
           } else {
             sendResponse({ success: false, error: 'No active stream for this window' });
           }
+          break;
+        }
+
+        case MessageType.SEND_FOLLOW_UP: {
+          const { text, windowId, historyId } = message as any;
+          console.log('[Service Worker] Received SEND_FOLLOW_UP for window', windowId);
+
+          let state = conversations.get(windowId);
+
+          // If no active conversation but historyId provided, load from history
+          if (!state && historyId) {
+            const item = await getHistoryDetail(historyId);
+            if (!item || !item.messages) {
+              sendResponse({ success: false, error: '历史记录不存在或无法读取对话内容' });
+              return;
+            }
+            try {
+              const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
+              const apiConfig = await getApiConfig();
+              state = {
+                historyId: item.id,
+                title: item.title,
+                url: item.url || '',
+                prompt: item.prompt || '',
+                messages,
+                abortController: null,
+                apiConfig
+              };
+              conversations.set(windowId, state);
+            } catch {
+              sendResponse({ success: false, error: '对话内容解析失败' });
+              return;
+            }
+          }
+
+          if (!state) {
+            sendResponse({ success: false, error: '当前没有活跃的对话' });
+            return;
+          }
+
+          sendResponse({ success: true });
+
+          // Append user message
+          state.messages.push({ role: 'user', content: text });
+
+          const preview = text.length > 200 ? text.slice(0, 200) + '...' : text;
+          streamAIResponse(windowId, preview);
           break;
         }
 

@@ -6,6 +6,7 @@ let prompts: Prompt[] = [];
 async function init() {
   document.getElementById('optionsBtn')?.addEventListener('click', openOptions);
   document.getElementById('markdownBtn')?.addEventListener('click', handleMarkdownClick);
+  document.getElementById('historyBtn')?.addEventListener('click', handleHistoryClick);
   document.getElementById('addPromptBtn')?.addEventListener('click', openOptions);
   document.getElementById('customSendBtn')?.addEventListener('click', handleCustomSend);
 
@@ -175,6 +176,33 @@ async function handleMarkdownClick() {
   } catch (error: any) {
     showError('操作失败: ' + error.message);
     console.error('[Popup] handleMarkdownClick error:', error);
+  }
+}
+
+async function handleHistoryClick() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.windowId) {
+      showError('无法获取当前窗口');
+      return;
+    }
+
+    // Open side panel first (requires user gesture context)
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+
+    // Notify side panel to show history view
+    console.log('[Popup] Sending SHOW_HISTORY_VIEW...');
+    await chrome.runtime.sendMessage({
+      type: MessageType.SHOW_HISTORY_VIEW,
+      windowId: tab.windowId
+    });
+    console.log('[Popup] SHOW_HISTORY_VIEW sent successfully');
+
+    // Close popup
+    window.close();
+  } catch (error: any) {
+    showError('操作失败: ' + error.message);
+    console.error('[Popup] handleHistoryClick error:', error);
   }
 }
 

@@ -27,15 +27,18 @@
     <main class="main">
       <!-- Output view -->
       <div id="output" class="output">
-        <div class="welcome">
-          <h2>欢迎使用 SmartReader</h2>
-          <p>点击扩展图标，选择一个提示词来开始。</p>
-          <div class="tips">
-            <h3>💡 提示词变量</h3>
-            <ul>
-              <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
-              <li><code>${text}</code> - 选中的文字</li>
-            </ul>
+        <div id="conversationLog" class="conversation-log"></div>
+        <div id="currentResponse" class="current-response">
+          <div class="welcome">
+            <h2>欢迎使用 SmartReader</h2>
+            <p>点击扩展图标，选择一个提示词来开始。</p>
+            <div class="tips">
+              <h3>💡 提示词变量</h3>
+              <ul>
+                <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
+                <li><code>${text}</code> - 选中的文字</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -63,6 +66,11 @@
     </main>
 
     <!-- loading removed -->
+
+    <div id="followUpArea" class="follow-up-area hidden">
+      <textarea id="followUpInput" placeholder="继续提问..." rows="1"></textarea>
+      <button id="followUpSendBtn">发送</button>
+    </div>
   </div>
 
   <script type="module" src="./sidepanel.ts"></script>
