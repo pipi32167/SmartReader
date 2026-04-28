@@ -11,6 +11,7 @@ const messageBuffer: any[] = [];
 // History view state
 let currentView: 'output' | 'history-list' | 'history-detail' = 'output';
 let currentHistoryId: number | null = null;
+let currentOutputHistoryId: number | null = null;
 let currentHistorySupportsFollowUp = false;
 let currentHistoryMarkdown = '';
 
@@ -78,7 +79,7 @@ function handleMessage(message: any) {
       break;
 
     case MessageType.STREAM_COMPLETE:
-      handleStreamComplete();
+      handleStreamComplete(message.historyId);
       break;
 
     case MessageType.STREAM_ERROR:
@@ -106,9 +107,10 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMes
   const conversationLog = document.getElementById('conversationLog');
   const currentResponse = document.getElementById('currentResponse');
 
-  // New conversation: clear log
+  // New conversation: clear log and reset history id
   if (!isFollowUp && conversationLog) {
     conversationLog.innerHTML = '';
+    currentOutputHistoryId = null;
   }
 
   // Archive previous turn if follow-up
@@ -159,10 +161,14 @@ function handleStreamChunk(content: string) {
   scrollToBottom();
 }
 
-function handleStreamComplete() {
+function handleStreamComplete(historyId?: number) {
   console.log('[SidePanel] STREAM_COMPLETE');
   isStreaming = false;
   updateStatus('idle', '完成');
+
+  if (historyId) {
+    currentOutputHistoryId = historyId;
+  }
 
   renderAccumulatedContent();
   hideAbortButton();
@@ -320,8 +326,9 @@ async function handleFollowUpSend() {
       text,
       windowId: win.id
     };
-    if (currentView === 'history-detail' && currentHistoryId !== null) {
-      payload.historyId = currentHistoryId;
+    const activeHistoryId = currentView === 'history-detail' ? currentHistoryId : currentOutputHistoryId;
+    if (activeHistoryId !== null) {
+      payload.historyId = activeHistoryId;
     }
     const response = await chrome.runtime.sendMessage(payload);
     if (!response?.success) {

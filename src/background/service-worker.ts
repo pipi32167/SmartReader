@@ -236,14 +236,13 @@ async function saveOrUpdateHistory(windowId: number, response: string): Promise<
         [state.title, state.url, promptText, response, JSON.stringify(state.messages), now, state.historyId]
       );
     } else {
-      await dbExec(
-        'INSERT INTO history (title, url, prompt, response, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      const result = await dbQuery(
+        'INSERT INTO history (title, url, prompt, response, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
         [state.title, state.url, promptText, response, JSON.stringify(state.messages), now, now]
       );
-      const result = await dbQuery('SELECT last_insert_rowid() as id');
       state.historyId = result[0]?.values[0][0] ?? null;
     }
-    console.log('[Service Worker] History saved for window', windowId);
+    console.log('[Service Worker] History saved for window', windowId, 'historyId:', state.historyId);
   } catch (error: any) {
     console.error('[Service Worker] Failed to save history:', error);
   }
@@ -637,12 +636,8 @@ async function streamAIResponse(
     // Append assistant message to state
     state.messages.push({ role: 'assistant', content: fullContent });
 
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_COMPLETE,
-      windowId
-    });
-
-    // Generate title only for the first turn (new conversation)
+    // Generate title and save history before notifying completion
+    // so sidepanel can receive historyId for follow-up recovery
     if (state.historyId === null) {
       const generatedTitle = await generateAITitle(state.apiConfig, fullContent);
       if (generatedTitle) {
@@ -651,6 +646,12 @@ async function streamAIResponse(
       }
     }
     await saveOrUpdateHistory(windowId, fullContent);
+
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_COMPLETE,
+      windowId,
+      historyId: state.historyId
+    });
   } catch (error: any) {
     clearTimeout(timeout);
     if (error.name === 'AbortError') {
