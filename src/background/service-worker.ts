@@ -640,11 +640,13 @@ async function streamAIResponse(
       windowId
     });
 
-    // Generate title and save/update history
-    const generatedTitle = await generateAITitle(state.apiConfig, fullContent);
-    if (generatedTitle) {
-      state.title = generatedTitle;
-      console.log('[Service Worker] AI title generated:', generatedTitle);
+    // Generate title only for the first turn (new conversation)
+    if (state.historyId === null) {
+      const generatedTitle = await generateAITitle(state.apiConfig, fullContent);
+      if (generatedTitle) {
+        state.title = generatedTitle;
+        console.log('[Service Worker] AI title generated:', generatedTitle);
+      }
     }
     await saveOrUpdateHistory(windowId, fullContent);
   } catch (error: any) {
