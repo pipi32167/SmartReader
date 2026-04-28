@@ -12,6 +12,7 @@ const messageBuffer: any[] = [];
 let currentView: 'output' | 'history-list' | 'history-detail' = 'output';
 let currentHistoryId: number | null = null;
 let currentHistorySupportsFollowUp = false;
+let currentHistoryMarkdown = '';
 
 function init() {
   console.log('[SidePanel] init() called');
@@ -375,10 +376,17 @@ async function handleAbortClick() {
 }
 
 async function handleCopyClick() {
-  if (!accumulatedContent) return;
+  let contentToCopy = '';
+  if (currentView === 'output') {
+    contentToCopy = accumulatedContent;
+  } else if (currentView === 'history-detail') {
+    contentToCopy = currentHistoryMarkdown;
+  }
+
+  if (!contentToCopy) return;
 
   try {
-    await navigator.clipboard.writeText(accumulatedContent);
+    await navigator.clipboard.writeText(contentToCopy);
     const btn = document.getElementById('copyBtn');
     if (btn) {
       btn.textContent = '✓ 已拷贝';
@@ -439,6 +447,15 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
       shouldShow = !isStreaming && currentHistorySupportsFollowUp;
     }
     followUpArea.classList.toggle('hidden', !shouldShow);
+  }
+
+  // Update copy button visibility
+  const copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) {
+    if (view === 'history-detail') {
+      copyBtn.classList.toggle('hidden', !currentHistoryMarkdown);
+    }
+    // For output view, keep existing show/hide logic from stream handlers
   }
 }
 
@@ -528,21 +545,26 @@ async function showHistoryDetail(id: number) {
         try {
           const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
           let html = '<div class="conversation-thread">';
+          const assistantContents: string[] = [];
           for (const msg of messages) {
             if (msg.role === 'user') {
               const userContent = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
               html += `<div class="turn user-turn" title="${escapeHtml(msg.content)}">${escapeHtml(userContent)}</div>`;
             } else if (msg.role === 'assistant') {
+              assistantContents.push(msg.content);
               html += `<div class="turn"><div class="markdown-content">${renderMarkdown(msg.content)}</div></div>`;
             }
           }
           html += '</div>';
           contentEl.innerHTML = html;
+          currentHistoryMarkdown = assistantContents.join('\n\n---\n\n');
         } catch {
           contentEl.innerHTML = `<div class="markdown-content">${renderMarkdown(item.response || '')}</div>`;
+          currentHistoryMarkdown = item.response || '';
         }
       } else {
         contentEl.innerHTML = `<div class="markdown-content">${renderMarkdown(item.response || '')}</div>`;
+        currentHistoryMarkdown = item.response || '';
       }
     } else {
       contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
