@@ -91,6 +91,15 @@ function initializeSchema(): void {
       created_at INTEGER,
       updated_at INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      url TEXT,
+      prompt TEXT,
+      response TEXT NOT NULL,
+      created_at INTEGER
+    );
   `);
 }
 

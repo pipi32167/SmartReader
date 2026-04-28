@@ -8,6 +8,12 @@ let pendingEnsure: Promise<void> | null = null;
 // Active stream abort controllers keyed by windowId
 const activeStreams = new Map<number, AbortController>();
 
+// Session metadata keyed by windowId (for history saving)
+const sessionInfo = new Map<number, { title: string; url: string; prompt: string }>();
+
+// Accumulated response content keyed by windowId
+const windowResponses = new Map<number, string>();
+
 // ============================================================================
 // Offscreen Document Management
 // ============================================================================
@@ -209,6 +215,63 @@ async function getPromptById(id: number): Promise<Prompt | null> {
 }
 
 // ============================================================================
+// History
+// ============================================================================
+
+async function saveHistory(windowId: number, response: string): Promise<void> {
+  const info = sessionInfo.get(windowId);
+  if (!info) return;
+  const now = Date.now();
+  try {
+    await dbExec(
+      'INSERT INTO history (title, url, prompt, response, created_at) VALUES (?, ?, ?, ?, ?)',
+      [info.title, info.url, info.prompt, response, now]
+    );
+    console.log('[Service Worker] History saved for window', windowId);
+  } catch (error: any) {
+    console.error('[Service Worker] Failed to save history:', error);
+  }
+}
+
+async function getHistoryList(limit: number = 100): Promise<any[]> {
+  const result = await dbQuery(
+    'SELECT id, title, url, prompt, created_at FROM history ORDER BY created_at DESC LIMIT ?',
+    [limit]
+  );
+  if (!result || result.length === 0) return [];
+  const columns = result[0].columns;
+  return result[0].values.map((row: any[]) => {
+    const item: any = {};
+    columns.forEach((col: string, i: number) => {
+      item[col] = row[i];
+    });
+    return item;
+  });
+}
+
+async function getHistoryDetail(id: number): Promise<any | null> {
+  const result = await dbQuery('SELECT * FROM history WHERE id = ?', [id]);
+  if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
+    return null;
+  }
+  const columns = result[0].columns;
+  const row = result[0].values[0];
+  const item: any = {};
+  columns.forEach((col: string, i: number) => {
+    item[col] = row[i];
+  });
+  return item;
+}
+
+async function deleteHistory(id: number): Promise<void> {
+  await dbExec('DELETE FROM history WHERE id = ?', [id]);
+}
+
+async function clearHistory(): Promise<void> {
+  await dbExec('DELETE FROM history');
+}
+
+// ============================================================================
 // PDF Helpers
 // ============================================================================
 
@@ -357,6 +420,7 @@ async function readStreamChunks(response: Response, windowId: number): Promise<v
   const decoder = new TextDecoder();
 
   let chunkCount = 0;
+  let fullContent = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -375,6 +439,7 @@ async function readStreamChunks(response: Response, windowId: number): Promise<v
         const content = parsed.choices?.[0]?.delta?.content || '';
         if (content) {
           chunkCount++;
+          fullContent += content;
           await chrome.runtime.sendMessage({
             type: MessageType.STREAM_CHUNK,
             content,
@@ -388,6 +453,7 @@ async function readStreamChunks(response: Response, windowId: number): Promise<v
   }
 
   console.log('[Service Worker] Stream complete, total chunks:', chunkCount);
+  windowResponses.set(windowId, fullContent);
   await chrome.runtime.sendMessage({
     type: MessageType.STREAM_COMPLETE,
     windowId
@@ -518,6 +584,13 @@ async function streamAIResponse(
     }
   } finally {
     activeStreams.delete(windowId);
+    // Save history only when stream completed successfully (windowResponses has content)
+    const response = windowResponses.get(windowId);
+    if (response && sessionInfo.has(windowId)) {
+      await saveHistory(windowId, response);
+    }
+    sessionInfo.delete(windowId);
+    windowResponses.delete(windowId);
   }
 }
 
@@ -594,6 +667,11 @@ async function executePrompt(
         .replace(/\$\{html\}/g, `（以下是一份 PDF 文件：${tabUrl}）`)
         .replace(/\$\{text\}/g, '(未选中文字)');
       console.log('[Service Worker] PDF prompt length:', finalPrompt.length);
+      sessionInfo.set(windowId, {
+        title: pdfBase64?.filename || 'PDF 文件',
+        url: tabUrl || '',
+        prompt: finalPrompt
+      });
     } else {
       // Normal HTML page flow
       console.log('[Service Worker] Step 1: Ensuring content script in tab', tabId);
@@ -662,6 +740,11 @@ async function executePrompt(
         .replace(/\$\{html\}/g, pageContent.html.substring(0, MAX_CONTENT_LENGTH))
         .replace(/\$\{text\}/g, pageContent.text || '(未选中文字)');
       console.log('[Service Worker] Final prompt length:', finalPrompt.length);
+      sessionInfo.set(windowId, {
+        title: pageContent.title || '未命名页面',
+        url: tabUrl || '',
+        prompt: finalPrompt
+      });
     }
 
     // 2. Get API config
@@ -933,6 +1016,34 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           console.log('[Service Worker] Received SHOW_PAGE_MARKDOWN:', { tabId, tabUrl, windowId });
           sendResponse({ success: true });
           showPageMarkdown(tabId, windowId, tabUrl);
+          break;
+        }
+
+        // History operations
+        case MessageType.GET_HISTORY_LIST: {
+          const limit = (message as any).limit || 100;
+          const items = await getHistoryList(limit);
+          sendResponse({ success: true, data: items });
+          break;
+        }
+
+        case MessageType.GET_HISTORY_DETAIL: {
+          const { id } = message as any;
+          const item = await getHistoryDetail(id);
+          sendResponse({ success: true, data: item });
+          break;
+        }
+
+        case MessageType.DELETE_HISTORY: {
+          const { id } = message as any;
+          await deleteHistory(id);
+          sendResponse({ success: true });
+          break;
+        }
+
+        case MessageType.CLEAR_HISTORY: {
+          await clearHistory();
+          sendResponse({ success: true });
           break;
         }
 

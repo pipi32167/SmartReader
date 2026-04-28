@@ -80,6 +80,7 @@ SQLite 数据库在 Offscreen Document 中初始化，持久化到 OPFS（文件
 
 - `api_config(id, base_url, api_key, model, updated_at)` — 单行配置表
 - `prompts(id, title, prompt, sort_order, created_at, updated_at)` — 用户自定义提示词模板表
+- `history(id, title, url, prompt, response, created_at)` — AI 对话历史记录表
 
 ---
 
@@ -169,6 +170,7 @@ Vite 配置（`vite.config.ts`）定义了多个 Rollup 入口：
 - `GET_PROMPTS` / `SAVE_PROMPT` / `DELETE_PROMPT` — 提示词 CRUD
 - `GET_API_CONFIG` / `SAVE_API_CONFIG` / `TEST_API_CONNECTION` — API 配置 CRUD
 - `EXTRACT_PDF_TEXT` — PDF 文本提取
+- `GET_HISTORY_LIST` / `GET_HISTORY_DETAIL` / `DELETE_HISTORY` / `CLEAR_HISTORY` — 历史记录 CRUD
 - `ABORT_STREAM` — 中止 AI 流式响应
 - `STREAM_START` / `STREAM_CHUNK` / `STREAM_COMPLETE` / `STREAM_ERROR` / `STREAM_ABORTED` — 流式消息
 

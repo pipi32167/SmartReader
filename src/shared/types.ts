@@ -25,6 +25,16 @@ export interface PageContent {
   text: string;
 }
 
+// History record
+export interface HistoryItem {
+  id: number;
+  title: string;
+  url: string;
+  prompt: string;
+  response: string;
+  created_at: number;
+}
+
 // Message types for communication between components
 export const MessageType = {
   // Content script
@@ -48,6 +58,12 @@ export const MessageType = {
   SAVE_API_CONFIG: 'SAVE_API_CONFIG',
   TEST_API_CONNECTION: 'TEST_API_CONNECTION',
   EXTRACT_PDF_TEXT: 'EXTRACT_PDF_TEXT',
+
+  // History operations
+  GET_HISTORY_LIST: 'GET_HISTORY_LIST',
+  GET_HISTORY_DETAIL: 'GET_HISTORY_DETAIL',
+  DELETE_HISTORY: 'DELETE_HISTORY',
+  CLEAR_HISTORY: 'CLEAR_HISTORY',
 
   // Side Panel → Service Worker
   ABORT_STREAM: 'ABORT_STREAM',

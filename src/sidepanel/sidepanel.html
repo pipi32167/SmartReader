@@ -12,6 +12,7 @@
       <div class="header-content">
         <span class="logo">🤖 SmartReader</span>
         <div class="header-right">
+          <button id="historyBtn" class="history-btn" title="历史记录">📜 历史</button>
           <button id="abortBtn" class="abort-btn hidden" title="中断生成">⏹ 中断</button>
           <button id="copyBtn" class="copy-btn hidden" title="拷贝 Markdown">📋 拷贝 Markdown</button>
           <div class="status" id="status">
@@ -24,6 +25,7 @@
     </header>
 
     <main class="main">
+      <!-- Output view -->
       <div id="output" class="output">
         <div class="welcome">
           <h2>欢迎使用 SmartReader</h2>
@@ -36,6 +38,26 @@
             </ul>
           </div>
         </div>
+      </div>
+
+      <!-- History list view -->
+      <div id="historyListView" class="history-list-view hidden">
+        <div class="history-toolbar">
+          <button id="backToOutputBtn" class="back-btn">← 返回</button>
+          <button id="clearHistoryBtn" class="clear-btn">🗑 清空</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+        <div id="historyEmpty" class="history-empty hidden">暂无历史记录</div>
+      </div>
+
+      <!-- History detail view -->
+      <div id="historyDetailView" class="history-detail-view hidden">
+        <div class="history-toolbar">
+          <button id="backToListBtn" class="back-btn">← 返回列表</button>
+          <button id="deleteHistoryBtn" class="delete-btn">🗑 删除</button>
+        </div>
+        <div class="history-meta" id="historyMeta"></div>
+        <div id="historyDetailContent" class="markdown-content"></div>
       </div>
     </main>
 

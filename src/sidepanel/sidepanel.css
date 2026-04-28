@@ -320,6 +320,161 @@ body {
   50% { opacity: 0; }
 }
 
+/* History Button */
+.history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.history-btn:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+/* History Views */
+.history-list-view,
+.history-detail-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.back-btn,
+.clear-btn,
+.delete-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.back-btn {
+  color: #555;
+  background: #f5f5f5;
+  border: 1px solid #ccc;
+}
+
+.back-btn:hover {
+  background: #e8e8e8;
+}
+
+.clear-btn,
+.delete-btn {
+  color: #d32f2f;
+  background: #ffebee;
+  border: 1px solid #d32f2f;
+}
+
+.clear-btn:hover,
+.delete-btn:hover {
+  background: #d32f2f;
+  color: white;
+}
+
+/* History List */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  padding: 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.history-item:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+}
+
+.history-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #222;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-item-meta {
+  font-size: 12px;
+  color: #888;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.history-item-url {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #888;
+  font-size: 14px;
+}
+
+/* History Detail */
+.history-meta {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.history-meta-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 6px;
+}
+
+.history-meta-url {
+  font-size: 12px;
+  color: #1a73e8;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.history-meta-time {
+  font-size: 12px;
+  color: #888;
+}
+
 /* Error */
 .error-message {
   padding: 16px;

@@ -7,6 +7,10 @@ let currentWindowId: number | null = null;
 let isReady = false;
 const messageBuffer: any[] = [];
 
+// History view state
+let currentView: 'output' | 'history-list' | 'history-detail' = 'output';
+let currentHistoryId: number | null = null;
+
 function init() {
   console.log('[SidePanel] init() called');
 
@@ -297,6 +301,133 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+// ============================================================================
+// History Views
+// ============================================================================
+
+function showView(view: 'output' | 'history-list' | 'history-detail') {
+  currentView = view;
+  const output = document.getElementById('output');
+  const historyListView = document.getElementById('historyListView');
+  const historyDetailView = document.getElementById('historyDetailView');
+
+  if (output) output.classList.toggle('hidden', view !== 'output');
+  if (historyListView) historyListView.classList.toggle('hidden', view !== 'history-list');
+  if (historyDetailView) historyDetailView.classList.toggle('hidden', view !== 'history-detail');
+}
+
+async function loadHistoryList() {
+  const listEl = document.getElementById('historyList');
+  const emptyEl = document.getElementById('historyEmpty');
+  if (!listEl) return;
+
+  listEl.innerHTML = '';
+  if (emptyEl) emptyEl.classList.add('hidden');
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: MessageType.GET_HISTORY_LIST, limit: 100 });
+    if (response?.success && response.data) {
+      renderHistoryList(response.data);
+    } else {
+      if (emptyEl) emptyEl.classList.remove('hidden');
+    }
+  } catch (error) {
+    console.error('[SidePanel] Failed to load history:', error);
+    if (emptyEl) emptyEl.classList.remove('hidden');
+  }
+}
+
+function renderHistoryList(items: any[]) {
+  const listEl = document.getElementById('historyList');
+  const emptyEl = document.getElementById('historyEmpty');
+  if (!listEl) return;
+
+  if (items.length === 0) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+
+  listEl.innerHTML = items.map(item => `
+    <div class="history-item" data-id="${item.id}">
+      <div class="history-item-title">${escapeHtml(item.title || '未命名')}</div>
+      <div class="history-item-meta">
+        <span class="history-item-url">${escapeHtml(item.url || '')}</span>
+        <span>${formatDate(item.created_at)}</span>
+      </div>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = Number((el as HTMLElement).dataset.id);
+      showHistoryDetail(id);
+    });
+  });
+}
+
+async function showHistoryDetail(id: number) {
+  currentHistoryId = id;
+  const contentEl = document.getElementById('historyDetailContent');
+  const metaEl = document.getElementById('historyMeta');
+  if (!contentEl || !metaEl) return;
+
+  contentEl.innerHTML = '<p style="color:#888;padding:20px;">加载中...</p>';
+  showView('history-detail');
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: MessageType.GET_HISTORY_DETAIL, id });
+    if (response?.success && response.data) {
+      const item = response.data;
+      metaEl.innerHTML = `
+        <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
+        ${item.url ? `<div class="history-meta-url">${escapeHtml(item.url)}</div>` : ''}
+        <div class="history-meta-time">${formatDate(item.created_at)}</div>
+      `;
+      try {
+        const html = marked.parse(item.response || '', { async: false }) as string;
+        contentEl.innerHTML = html;
+      } catch {
+        contentEl.innerHTML = `<div class="streaming-text">${escapeHtml(item.response || '')}</div>`;
+      }
+    } else {
+      contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
+    }
+  } catch (error) {
+    console.error('[SidePanel] Failed to load history detail:', error);
+    contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
+  }
+}
+
+async function deleteHistoryItem(id: number) {
+  if (!window.confirm('确定删除这条历史记录？')) return;
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.DELETE_HISTORY, id });
+    showView('history-list');
+    await loadHistoryList();
+  } catch (error) {
+    console.error('[SidePanel] Failed to delete history:', error);
+  }
+}
+
+async function clearAllHistory() {
+  if (!window.confirm('确定清空所有历史记录？此操作不可恢复。')) return;
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.CLEAR_HISTORY });
+    await loadHistoryList();
+  } catch (error) {
+    console.error('[SidePanel] Failed to clear history:', error);
+  }
+}
+
+function formatDate(timestamp: number): string {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // Configure marked
 marked.use({
   gfm: true,
@@ -313,5 +444,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const abortBtn = document.getElementById('abortBtn');
   if (abortBtn) {
     abortBtn.addEventListener('click', handleAbortClick);
+  }
+
+  // History buttons
+  const historyBtn = document.getElementById('historyBtn');
+  if (historyBtn) {
+    historyBtn.addEventListener('click', () => {
+      showView('history-list');
+      loadHistoryList();
+    });
+  }
+
+  const backToOutputBtn = document.getElementById('backToOutputBtn');
+  if (backToOutputBtn) {
+    backToOutputBtn.addEventListener('click', () => showView('output'));
+  }
+
+  const backToListBtn = document.getElementById('backToListBtn');
+  if (backToListBtn) {
+    backToListBtn.addEventListener('click', () => showView('history-list'));
+  }
+
+  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', clearAllHistory);
+  }
+
+  const deleteHistoryBtn = document.getElementById('deleteHistoryBtn');
+  if (deleteHistoryBtn) {
+    deleteHistoryBtn.addEventListener('click', () => {
+      if (currentHistoryId !== null) {
+        deleteHistoryItem(currentHistoryId);
+      }
+    });
   }
 });
