@@ -394,6 +394,29 @@ body {
   color: white;
 }
 
+/* History Search */
+.history-search {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.history-search:focus {
+  border-color: #1a73e8;
+}
+
+.history-search::placeholder {
+  color: #aaa;
+}
+
 /* History List */
 .history-list {
   display: flex;

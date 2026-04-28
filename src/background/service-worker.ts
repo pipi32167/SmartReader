@@ -233,11 +233,49 @@ async function saveHistory(windowId: number, response: string): Promise<void> {
   }
 }
 
-async function getHistoryList(limit: number = 100): Promise<any[]> {
-  const result = await dbQuery(
-    'SELECT id, title, url, prompt, created_at FROM history ORDER BY created_at DESC LIMIT ?',
-    [limit]
-  );
+async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<string | null> {
+  try {
+    const baseUrl = apiConfig.base_url.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiConfig.api_key}`
+      },
+      body: JSON.stringify({
+        model: apiConfig.model,
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant. Please respond in the same language as the user query.' },
+          { role: 'user', content: `请根据以下内容生成一个简洁的标题（不超过15个字），只返回标题文本，不要加引号、序号或任何解释：\n\n${content.substring(0, 1500)}` }
+        ],
+        stream: false,
+        max_tokens: 30
+      })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const title = data.choices?.[0]?.message?.content?.trim()
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/^[\d\.\-\*\#]+\s*/, '')
+      .trim();
+    return title || null;
+  } catch (error: any) {
+    console.error('[Service Worker] AI title generation failed:', error.message);
+    return null;
+  }
+}
+
+async function getHistoryList(limit: number = 100, keyword?: string): Promise<any[]> {
+  let sql = 'SELECT id, title, url, prompt, created_at FROM history';
+  const params: unknown[] = [];
+  if (keyword && keyword.trim()) {
+    const pattern = `%${keyword.trim()}%`;
+    sql += ' WHERE (title LIKE ? OR url LIKE ? OR prompt LIKE ?)';
+    params.push(pattern, pattern, pattern);
+  }
+  sql += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(limit);
+  const result = await dbQuery(sql, params);
   if (!result || result.length === 0) return [];
   const columns = result[0].columns;
   return result[0].values.map((row: any[]) => {
@@ -587,6 +625,14 @@ async function streamAIResponse(
     // Save history only when stream completed successfully (windowResponses has content)
     const response = windowResponses.get(windowId);
     if (response && sessionInfo.has(windowId)) {
+      // Try to generate a better AI title before saving
+      const generatedTitle = await generateAITitle(apiConfig, response);
+      if (generatedTitle) {
+        const info = sessionInfo.get(windowId)!;
+        info.title = generatedTitle;
+        sessionInfo.set(windowId, info);
+        console.log('[Service Worker] AI title generated:', generatedTitle);
+      }
       await saveHistory(windowId, response);
     }
     sessionInfo.delete(windowId);
@@ -1022,7 +1068,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         // History operations
         case MessageType.GET_HISTORY_LIST: {
           const limit = (message as any).limit || 100;
-          const items = await getHistoryList(limit);
+          const keyword = (message as any).keyword;
+          const items = await getHistoryList(limit, keyword);
           sendResponse({ success: true, data: items });
           break;
         }

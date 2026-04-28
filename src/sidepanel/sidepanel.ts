@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import { MessageType } from '../shared/types';
+import { debounce } from '../shared/utils';
 
 let accumulatedContent = '';
 let isStreaming = false;
@@ -316,7 +317,7 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
   if (historyDetailView) historyDetailView.classList.toggle('hidden', view !== 'history-detail');
 }
 
-async function loadHistoryList() {
+async function loadHistoryList(keyword?: string) {
   const listEl = document.getElementById('historyList');
   const emptyEl = document.getElementById('historyEmpty');
   if (!listEl) return;
@@ -325,7 +326,11 @@ async function loadHistoryList() {
   if (emptyEl) emptyEl.classList.add('hidden');
 
   try {
-    const response = await chrome.runtime.sendMessage({ type: MessageType.GET_HISTORY_LIST, limit: 100 });
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.GET_HISTORY_LIST,
+      limit: 100,
+      keyword
+    });
     if (response?.success && response.data) {
       renderHistoryList(response.data);
     } else {
@@ -476,6 +481,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentHistoryId !== null) {
         deleteHistoryItem(currentHistoryId);
       }
+    });
+  }
+
+  // History search
+  const historySearch = document.getElementById('historySearch') as HTMLInputElement | null;
+  if (historySearch) {
+    const debouncedSearch = debounce((value: string) => {
+      loadHistoryList(value.trim() || undefined);
+    }, 300);
+    historySearch.addEventListener('input', () => {
+      debouncedSearch(historySearch.value);
     });
   }
 });
