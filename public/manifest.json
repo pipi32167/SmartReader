@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SmartReader",
   "short_name": "SmartReader",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Summarize and ask questions about web pages using AI",
   "homepage_url": "https://github.com/pipi32167/SmartReader",
   "permissions": [
@@ -21,8 +21,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content-script.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-script.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -45,8 +49,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["sql-wasm.wasm"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "sql-wasm.wasm"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "content_security_policy": {
