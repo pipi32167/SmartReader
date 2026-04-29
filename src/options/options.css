@@ -353,6 +353,37 @@ input.auto-filled {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  gap: 8px;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #bbb;
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.prompt-card.dragging {
+  opacity: 0.5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.drop-indicator {
+  height: 3px;
+  background: #1a73e8;
+  border-radius: 2px;
+  margin: 4px 0;
+  pointer-events: none;
 }
 
 .prompt-card-title {

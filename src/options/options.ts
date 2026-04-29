@@ -231,6 +231,8 @@ async function loadPrompts() {
   }
 }
 
+let draggedPromptId: number | null = null;
+
 function renderPrompts() {
   const container = document.getElementById('promptsList');
   if (!container) return;
@@ -245,8 +247,9 @@ function renderPrompts() {
   }
 
   container.innerHTML = prompts.map(p => `
-    <div class="prompt-card" data-id="${p.id}">
+    <div class="prompt-card" data-id="${p.id}" draggable="true">
       <div class="prompt-card-header">
+        <span class="drag-handle" title="拖拽排序">⋮⋮</span>
         <span class="prompt-card-title">${escapeHtml(p.title)}</span>
         <div class="prompt-card-actions">
           <button class="btn btn-edit" data-id="${p.id}">编辑</button>
@@ -254,7 +257,6 @@ function renderPrompts() {
         </div>
       </div>
       <div class="prompt-card-content">${escapeHtml(p.prompt)}</div>
-      <div class="prompt-card-meta">排序: ${p.sort_order}</div>
     </div>
   `).join('');
 
@@ -273,6 +275,103 @@ function renderPrompts() {
       deletePrompt(id);
     });
   });
+
+  // Bind drag events on cards
+  container.querySelectorAll('.prompt-card').forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      draggedPromptId = Number((card as HTMLElement).dataset.id);
+      card.classList.add('dragging');
+      const dt = (e as DragEvent).dataTransfer;
+      if (dt) {
+        dt.effectAllowed = 'move';
+        dt.setData('text/plain', String(draggedPromptId));
+      }
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      draggedPromptId = null;
+      document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    });
+  });
+
+  // Bind container-level dragover/drop once
+  if (!container.hasAttribute('data-drag-bound')) {
+    container.setAttribute('data-drag-bound', 'true');
+
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const afterElement = getDragAfterElement(container, e.clientY);
+      const indicator = getDropIndicator();
+      if (afterElement == null) {
+        container.appendChild(indicator);
+      } else {
+        container.insertBefore(indicator, afterElement);
+      }
+    });
+
+    container.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+      if (draggedPromptId == null) return;
+
+      const afterElement = getDragAfterElement(container, e.clientY);
+      const cardElements = Array.from(container.querySelectorAll('.prompt-card'));
+      const fromIndex = prompts.findIndex(p => p.id === draggedPromptId);
+      if (fromIndex === -1) return;
+
+      let toIndex: number;
+      if (afterElement == null) {
+        toIndex = prompts.length - 1;
+      } else {
+        toIndex = cardElements.indexOf(afterElement);
+        if (toIndex > fromIndex) toIndex -= 1;
+      }
+
+      if (fromIndex === toIndex) return;
+
+      const [moved] = prompts.splice(fromIndex, 1);
+      prompts.splice(toIndex, 0, moved);
+
+      const orders = prompts.map((p, i) => ({ id: p.id, sort_order: i }));
+      renderPrompts();
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: MessageType.REORDER_PROMPTS,
+          orders
+        });
+        if (!response?.success) {
+          console.error('[Options] Reorder failed:', response?.error);
+          await loadPrompts();
+        }
+      } catch (err) {
+        console.error('[Options] Failed to reorder prompts:', err);
+        await loadPrompts();
+      }
+    });
+  }
+}
+
+function getDragAfterElement(container: HTMLElement, y: number): Element | null {
+  const draggableElements = [...container.querySelectorAll('.prompt-card:not(.dragging)')];
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child };
+    }
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY, element: null as Element | null }).element;
+}
+
+function getDropIndicator(): HTMLElement {
+  let indicator = document.querySelector('.drop-indicator') as HTMLElement;
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+  }
+  return indicator;
 }
 
 // ============================================================================
@@ -317,6 +416,9 @@ function closeModal() {
 
 function openAddPrompt() {
   editingPromptId = null;
+  const maxSort = prompts.length > 0 ? Math.max(...prompts.map(p => p.sort_order)) : -1;
+  (document.getElementById('promptSort') as HTMLInputElement).value = String(maxSort + 1);
+  (document.getElementById('modalTitle') as HTMLElement).textContent = '添加提示词';
   openModal();
 }
 

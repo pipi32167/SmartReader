@@ -1089,6 +1089,20 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           break;
         }
 
+        case MessageType.REORDER_PROMPTS: {
+          const { orders } = message as any;
+          try {
+            for (const { id, sort_order } of orders) {
+              await dbExec('UPDATE prompts SET sort_order = ? WHERE id = ?', [sort_order, id]);
+            }
+            sendResponse({ success: true });
+          } catch (error: any) {
+            console.error('[Service Worker] Failed to reorder prompts:', error);
+            sendResponse({ success: false, error: error.message || '排序更新失败' });
+          }
+          break;
+        }
+
         // API Config operations
         case MessageType.GET_API_CONFIG: {
           const config = await getApiConfig();
