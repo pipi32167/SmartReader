@@ -324,6 +324,14 @@ async function clearHistory(): Promise<void> {
   await dbExec('DELETE FROM history');
 }
 
+async function updateHistory(id: number, messages: string, response: string): Promise<void> {
+  const now = Date.now();
+  await dbExec(
+    'UPDATE history SET messages = ?, response = ?, updated_at = ? WHERE id = ?',
+    [messages, response, now, id]
+  );
+}
+
 // ============================================================================
 // PDF Helpers
 // ============================================================================
@@ -1179,6 +1187,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 
         case MessageType.CLEAR_HISTORY: {
           await clearHistory();
+          sendResponse({ success: true });
+          break;
+        }
+
+        case MessageType.UPDATE_HISTORY: {
+          const { id, messages, response } = message as any;
+          await updateHistory(id, messages, response);
           sendResponse({ success: true });
           break;
         }

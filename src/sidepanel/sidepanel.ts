@@ -562,18 +562,33 @@ async function showHistoryDetail(id: number) {
           const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
           let html = '<div class="conversation-thread">';
           const assistantContents: string[] = [];
-          for (const msg of messages) {
+          messages.forEach((msg, index) => {
             if (msg.role === 'user') {
               const userContent = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
-              html += `<div class="turn user-turn" title="${escapeHtml(msg.content)}">${escapeHtml(userContent)}</div>`;
+              html += `<div class="turn user-turn" data-index="${index}" title="${escapeHtml(msg.content)}">
+                <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
+                ${escapeHtml(userContent)}
+              </div>`;
             } else if (msg.role === 'assistant') {
               assistantContents.push(msg.content);
-              html += `<div class="turn"><div class="markdown-content">${renderMarkdown(msg.content)}</div></div>`;
+              html += `<div class="turn" data-index="${index}">
+                <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
+                <div class="markdown-content">${renderMarkdown(msg.content)}</div>
+              </div>`;
             }
-          }
+          });
           html += '</div>';
           contentEl.innerHTML = html;
           currentHistoryMarkdown = assistantContents.join('\n\n---\n\n');
+
+          // Bind delete buttons
+          contentEl.querySelectorAll('.msg-delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const idx = Number((btn as HTMLElement).dataset.index);
+              deleteHistoryMessage(id, messages, idx);
+            });
+          });
         } catch {
           contentEl.innerHTML = `<div class="markdown-content">${renderMarkdown(item.response || '')}</div>`;
           currentHistoryMarkdown = item.response || '';
@@ -599,6 +614,25 @@ async function deleteHistoryItem(id: number) {
     await loadHistoryList();
   } catch (error) {
     console.error('[SidePanel] Failed to delete history:', error);
+  }
+}
+
+async function deleteHistoryMessage(historyId: number, messages: Array<{role: string; content: string}>, index: number) {
+  if (!window.confirm('确定删除这条消息？')) return;
+  try {
+    const updatedMessages = messages.filter((_, i) => i !== index);
+    // Recompute response as the last assistant message content, or empty if none
+    const assistantMessages = updatedMessages.filter(m => m.role === 'assistant');
+    const newResponse = assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1].content : '';
+    await chrome.runtime.sendMessage({
+      type: MessageType.UPDATE_HISTORY,
+      id: historyId,
+      messages: JSON.stringify(updatedMessages),
+      response: newResponse
+    });
+    await showHistoryDetail(historyId);
+  } catch (error) {
+    console.error('[SidePanel] Failed to delete history message:', error);
   }
 }
 
