@@ -357,6 +357,20 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     return;
   }
 
+  if (messageIndex === -1) {
+    const lastAssistantIdx = messages.reduce((lastIdx, msg, idx) => msg.role === 'assistant' ? idx : lastIdx, -1);
+    if (lastAssistantIdx === -1) {
+      console.error('[Service Worker] No assistant message found to retry');
+      await chrome.runtime.sendMessage({
+        type: MessageType.STREAM_ERROR,
+        error: '没有可重试的 AI 回复',
+        windowId
+      });
+      return;
+    }
+    messageIndex = lastAssistantIdx;
+  }
+
   if (messages[messageIndex]?.role !== 'assistant') {
     console.error('[Service Worker] Can only retry assistant messages');
     await chrome.runtime.sendMessage({

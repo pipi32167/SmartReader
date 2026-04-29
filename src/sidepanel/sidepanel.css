@@ -638,6 +638,12 @@ body {
   background: #e8f5e9;
 }
 
+.response-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
 /* Current Response */
 .current-response {
   min-height: 20px;

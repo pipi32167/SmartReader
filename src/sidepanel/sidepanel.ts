@@ -200,18 +200,22 @@ function handleStreamError(error: string) {
 
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse) {
+    const retryToolbar = currentOutputHistoryId != null
+      ? '<div class="response-toolbar"><button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button></div>'
+      : '';
     currentResponse.innerHTML = `
       <div class="error-message">
         <h3>❌ 出错了</h3>
         <p>${escapeHtml(error)}</p>
       </div>
-      ${accumulatedContent ? `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>` : ''}
+      ${accumulatedContent ? retryToolbar + `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>` : ''}
     `;
+    bindCurrentRetryButton();
   }
 
   hideAbortButton();
-  hideCopyButton();
-  hideFollowUpArea();
+  showCopyButton();
+  showFollowUpArea();
   hidePromptPreview();
 }
 
@@ -230,7 +234,42 @@ function handleStreamAborted() {
 function renderAccumulatedContent() {
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse && accumulatedContent) {
-    currentResponse.innerHTML = `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    const retryToolbar = currentOutputHistoryId != null
+      ? '<div class="response-toolbar"><button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button></div>'
+      : '';
+    currentResponse.innerHTML = `${retryToolbar}<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    bindCurrentRetryButton();
+  }
+}
+
+function bindCurrentRetryButton() {
+  const retryBtn = document.getElementById('currentRetryBtn');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      retryCurrentMessage();
+    });
+  }
+}
+
+async function retryCurrentMessage() {
+  if (currentOutputHistoryId == null) {
+    alert('对话尚未保存，无法重试');
+    return;
+  }
+  try {
+    const win = await chrome.windows.getCurrent();
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.RETRY_MESSAGE,
+      historyId: currentOutputHistoryId,
+      messageIndex: -1,
+      windowId: win.id
+    });
+    if (!response?.success) {
+      console.error('[SidePanel] Retry failed:', response?.error);
+    }
+  } catch (error) {
+    console.error('[SidePanel] Failed to retry current message:', error);
   }
 }
 
