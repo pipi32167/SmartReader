@@ -507,6 +507,7 @@ function renderHistoryList(items: any[]) {
     const promptPreview = item.prompt ? truncate(item.prompt, 120) : '';
     return `
     <div class="history-item" data-id="${item.id}">
+      <button class="history-item-delete" data-id="${item.id}" title="删除">🗑</button>
       <div class="history-item-title">${escapeHtml(item.title || '未命名')}</div>
       ${promptPreview ? `<div class="history-item-prompt">${escapeHtml(promptPreview)}</div>` : ''}
       <div class="history-item-meta">
@@ -521,6 +522,14 @@ function renderHistoryList(items: any[]) {
     el.addEventListener('click', () => {
       const id = Number((el as HTMLElement).dataset.id);
       showHistoryDetail(id);
+    });
+  });
+
+  listEl.querySelectorAll('.history-item-delete').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = Number((el as HTMLElement).dataset.id);
+      deleteHistoryItem(id);
     });
   });
 }

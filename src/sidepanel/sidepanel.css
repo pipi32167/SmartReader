@@ -425,6 +425,7 @@ body {
 }
 
 .history-item {
+  position: relative;
   padding: 12px;
   background: white;
   border: 1px solid #e0e0e0;
@@ -438,11 +439,39 @@ body {
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
 }
 
+.history-item-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 1;
+}
+
+.history-item:hover .history-item-delete {
+  opacity: 1;
+}
+
+.history-item-delete:hover {
+  background: #ffebee;
+}
+
 .history-item-title {
   font-size: 14px;
   font-weight: 500;
   color: #222;
   margin-bottom: 4px;
+  padding-right: 32px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
