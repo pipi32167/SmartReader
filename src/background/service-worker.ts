@@ -401,7 +401,8 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
   conversations.set(windowId, state);
 
   console.log('[Service Worker] Retrying message at index', messageIndex, 'for history', historyId);
-  await streamAIResponse(windowId, lastMsg.content);
+  const preview = lastMsg.content.length > 200 ? lastMsg.content.slice(0, 200) + '...' : lastMsg.content;
+  await streamAIResponse(windowId, preview);
 }
 
 // ============================================================================
