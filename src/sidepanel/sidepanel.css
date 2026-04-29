@@ -624,10 +624,15 @@ body {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s, background 0.2s;
   margin-left: 4px;
   margin-bottom: 4px;
+}
+
+/* In history detail: hidden by default, show on turn hover */
+.turn .msg-retry-btn {
+  opacity: 0;
 }
 
 .turn:hover .msg-retry-btn {
