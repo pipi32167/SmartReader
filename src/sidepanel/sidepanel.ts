@@ -573,6 +573,7 @@ async function showHistoryDetail(id: number) {
               assistantContents.push(msg.content);
               html += `<div class="turn" data-index="${index}">
                 <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
+                <button class="msg-retry-btn" data-index="${index}" title="重新生成">🔄</button>
                 <div class="markdown-content">${renderMarkdown(msg.content)}</div>
               </div>`;
             }
@@ -587,6 +588,15 @@ async function showHistoryDetail(id: number) {
               e.stopPropagation();
               const idx = Number((btn as HTMLElement).dataset.index);
               deleteHistoryMessage(id, messages, idx);
+            });
+          });
+
+          // Bind retry buttons
+          contentEl.querySelectorAll('.msg-retry-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const idx = Number((btn as HTMLElement).dataset.index);
+              retryHistoryMessage(id, idx);
             });
           });
         } catch {
@@ -633,6 +643,24 @@ async function deleteHistoryMessage(historyId: number, messages: Array<{role: st
     await showHistoryDetail(historyId);
   } catch (error) {
     console.error('[SidePanel] Failed to delete history message:', error);
+  }
+}
+
+async function retryHistoryMessage(historyId: number, messageIndex: number) {
+  if (!window.confirm('确定重新生成这条回复？')) return;
+  try {
+    const win = await chrome.windows.getCurrent();
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.RETRY_MESSAGE,
+      historyId,
+      messageIndex,
+      windowId: win.id
+    });
+    if (!response?.success) {
+      console.error('[SidePanel] Retry failed:', response?.error);
+    }
+  } catch (error) {
+    console.error('[SidePanel] Failed to retry history message:', error);
   }
 }
 

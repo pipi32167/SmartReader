@@ -77,6 +77,7 @@ export const MessageType = {
   // Side Panel → Service Worker
   ABORT_STREAM: 'ABORT_STREAM',
   SEND_FOLLOW_UP: 'SEND_FOLLOW_UP',
+  RETRY_MESSAGE: 'RETRY_MESSAGE',
 
   // Service Worker → Side Panel
   STREAM_START: 'STREAM_START',

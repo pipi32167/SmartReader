@@ -332,6 +332,78 @@ async function updateHistory(id: number, messages: string, response: string): Pr
   );
 }
 
+async function retryHistoryMessage(historyId: number, messageIndex: number, windowId: number): Promise<void> {
+  const item = await getHistoryDetail(historyId);
+  if (!item || !item.messages) {
+    console.error('[Service Worker] History not found or has no messages:', historyId);
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_ERROR,
+      error: '历史记录不存在或无法读取对话内容',
+      windowId
+    });
+    return;
+  }
+
+  let messages: Array<{role: string; content: string}>;
+  try {
+    messages = JSON.parse(item.messages);
+  } catch {
+    console.error('[Service Worker] Failed to parse messages for retry');
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_ERROR,
+      error: '对话内容解析失败',
+      windowId
+    });
+    return;
+  }
+
+  if (messages[messageIndex]?.role !== 'assistant') {
+    console.error('[Service Worker] Can only retry assistant messages');
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_ERROR,
+      error: '只能重试 AI 回复消息',
+      windowId
+    });
+    return;
+  }
+
+  const contextMessages = messages.slice(0, messageIndex);
+  const lastMsg = contextMessages[contextMessages.length - 1];
+  if (!lastMsg || lastMsg.role !== 'user') {
+    console.error('[Service Worker] Invalid context for retry');
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_ERROR,
+      error: '上下文格式错误',
+      windowId
+    });
+    return;
+  }
+
+  const apiConfig = await getApiConfig();
+  if (!apiConfig.api_key) {
+    await chrome.runtime.sendMessage({
+      type: MessageType.STREAM_ERROR,
+      error: 'API Key 未配置。请打开选项页面配置 API 设置。',
+      windowId
+    });
+    return;
+  }
+
+  const state: ConversationState = {
+    historyId: item.id,
+    title: item.title,
+    url: item.url || '',
+    prompt: item.prompt || '',
+    messages: contextMessages,
+    abortController: null,
+    apiConfig
+  };
+  conversations.set(windowId, state);
+
+  console.log('[Service Worker] Retrying message at index', messageIndex, 'for history', historyId);
+  await streamAIResponse(windowId, lastMsg.content);
+}
+
 // ============================================================================
 // PDF Helpers
 // ============================================================================
@@ -1151,6 +1223,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 
           const preview = text.length > 200 ? text.slice(0, 200) + '...' : text;
           streamAIResponse(windowId, preview);
+          break;
+        }
+
+        case MessageType.RETRY_MESSAGE: {
+          const { historyId, messageIndex, windowId } = message as any;
+          console.log('[Service Worker] Received RETRY_MESSAGE for history', historyId, 'index', messageIndex);
+          sendResponse({ success: true });
+          retryHistoryMessage(historyId, messageIndex, windowId);
           break;
         }
 
