@@ -117,7 +117,12 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMes
   if (isFollowUp && accumulatedContent && conversationLog) {
     const turnDiv = document.createElement('div');
     turnDiv.className = 'turn';
-    turnDiv.innerHTML = `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    const archivedContent = accumulatedContent;
+    turnDiv.innerHTML = `<div class="turn-toolbar"><button class="msg-copy-btn" title="拷贝 Markdown">📋</button></div><div class="markdown-content">${renderMarkdown(archivedContent)}</div>`;
+    const copyBtn = turnDiv.querySelector('.msg-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => copyMarkdownToClipboard(archivedContent, copyBtn as HTMLElement));
+    }
     conversationLog.appendChild(turnDiv);
   }
 
@@ -136,7 +141,6 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMes
   }
 
   showAbortButton();
-  hideCopyButton();
   hideFollowUpArea();
   updateStatus('active', 'AI 生成中...');
 
@@ -172,7 +176,6 @@ function handleStreamComplete(historyId?: number) {
 
   renderAccumulatedContent();
   hideAbortButton();
-  showCopyButton();
   showFollowUpArea();
   scrollToBottom();
 }
@@ -200,21 +203,27 @@ function handleStreamError(error: string) {
 
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse) {
-    const retryToolbar = currentOutputHistoryId != null
-      ? '<div class="response-toolbar"><button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button></div>'
+    const retryBtnHtml = currentOutputHistoryId != null
+      ? '<button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button>'
+      : '';
+    const contentHtml = accumulatedContent
+      ? `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="拷贝 Markdown">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`
       : '';
     currentResponse.innerHTML = `
       <div class="error-message">
         <h3>❌ 出错了</h3>
         <p>${escapeHtml(error)}</p>
       </div>
-      ${accumulatedContent ? retryToolbar + `<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>` : ''}
+      ${contentHtml}
     `;
     bindCurrentRetryButton();
+    const copyBtn = currentResponse.querySelector('.msg-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => copyMarkdownToClipboard(accumulatedContent, copyBtn as HTMLElement));
+    }
   }
 
   hideAbortButton();
-  showCopyButton();
   showFollowUpArea();
   hidePromptPreview();
 }
@@ -226,7 +235,6 @@ function handleStreamAborted() {
 
   renderAccumulatedContent();
   hideAbortButton();
-  showCopyButton();
   showFollowUpArea();
   scrollToBottom();
 }
@@ -234,11 +242,15 @@ function handleStreamAborted() {
 function renderAccumulatedContent() {
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse && accumulatedContent) {
-    const retryToolbar = currentOutputHistoryId != null
-      ? '<div class="response-toolbar"><button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button></div>'
+    const retryBtnHtml = currentOutputHistoryId != null
+      ? '<button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button>'
       : '';
-    currentResponse.innerHTML = `${retryToolbar}<div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    currentResponse.innerHTML = `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="拷贝 Markdown">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
     bindCurrentRetryButton();
+    const copyBtn = currentResponse.querySelector('.msg-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => copyMarkdownToClipboard(accumulatedContent, copyBtn as HTMLElement));
+    }
   }
 }
 
@@ -292,23 +304,6 @@ function scrollToBottom() {
   const main = document.querySelector('.main');
   if (main) {
     main.scrollTop = main.scrollHeight;
-  }
-}
-
-function showCopyButton() {
-  const btn = document.getElementById('copyBtn');
-  if (btn) {
-    btn.classList.remove('hidden');
-    btn.textContent = '📋 拷贝 Markdown';
-    btn.classList.remove('copied');
-  }
-}
-
-function hideCopyButton() {
-  const btn = document.getElementById('copyBtn');
-  if (btn) {
-    btn.classList.add('hidden');
-    btn.classList.remove('copied');
   }
 }
 
@@ -421,35 +416,21 @@ async function handleAbortClick() {
   }
 }
 
-async function handleCopyClick() {
-  let contentToCopy = '';
-  if (currentView === 'output') {
-    contentToCopy = accumulatedContent;
-  } else if (currentView === 'history-detail') {
-    contentToCopy = currentHistoryMarkdown;
-  }
-
-  if (!contentToCopy) return;
-
+async function copyMarkdownToClipboard(text: string, btn?: HTMLElement) {
+  if (!text) return;
   try {
-    await navigator.clipboard.writeText(contentToCopy);
-    const btn = document.getElementById('copyBtn');
+    await navigator.clipboard.writeText(text);
     if (btn) {
-      btn.textContent = '✓ 已拷贝';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = '📋 拷贝 Markdown';
-        btn.classList.remove('copied');
-      }, 2000);
+      const original = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = original; }, 2000);
     }
   } catch (err) {
     console.error('[SidePanel] Copy failed:', err);
-    const btn = document.getElementById('copyBtn');
     if (btn) {
-      btn.textContent = '❌ 拷贝失败';
-      setTimeout(() => {
-        btn.textContent = '📋 拷贝 Markdown';
-      }, 2000);
+      const original = btn.textContent;
+      btn.textContent = '❌';
+      setTimeout(() => { btn.textContent = original; }, 2000);
     }
   }
 }
@@ -493,15 +474,6 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
       shouldShow = !isStreaming && currentHistorySupportsFollowUp;
     }
     followUpArea.classList.toggle('hidden', !shouldShow);
-  }
-
-  // Update copy button visibility
-  const copyBtn = document.getElementById('copyBtn');
-  if (copyBtn) {
-    if (view === 'history-detail') {
-      copyBtn.classList.toggle('hidden', !currentHistoryMarkdown);
-    }
-    // For output view, keep existing show/hide logic from stream handlers
   }
 }
 
@@ -589,7 +561,7 @@ async function showHistoryDetail(id: number) {
       const promptDisplay = !item.messages && item.prompt ? truncate(item.prompt, 200) : '';
       metaEl.innerHTML = `
         <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
-        ${item.url ? `<div class="history-meta-url">${escapeHtml(item.url)}</div>` : ''}
+        ${item.url ? `<a class="history-meta-url" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>` : ''}
         ${promptDisplay ? `<div class="history-meta-prompt">${escapeHtml(promptDisplay)}</div>` : ''}
         <div class="history-meta-time">${formatDate(item.created_at)}</div>
       `;
@@ -609,8 +581,11 @@ async function showHistoryDetail(id: number) {
             } else if (msg.role === 'assistant') {
               assistantContents.push(msg.content);
               html += `<div class="turn" data-index="${index}">
-                <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
-                <button class="msg-retry-btn" data-index="${index}" title="重新生成">🔄</button>
+                <div class="turn-toolbar">
+                  <button class="msg-copy-btn" data-index="${index}" title="拷贝 Markdown">📋</button>
+                  <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
+                  <button class="msg-retry-btn" data-index="${index}" title="重新生成">🔄</button>
+                </div>
                 <div class="markdown-content">${renderMarkdown(msg.content)}</div>
               </div>`;
             }
@@ -634,6 +609,18 @@ async function showHistoryDetail(id: number) {
               e.stopPropagation();
               const idx = Number((btn as HTMLElement).dataset.index);
               retryHistoryMessage(id, idx);
+            });
+          });
+
+          // Bind copy buttons
+          contentEl.querySelectorAll('.msg-copy-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const idx = Number((btn as HTMLElement).dataset.index);
+              const msg = messages[idx];
+              if (msg?.role === 'assistant') {
+                copyMarkdownToClipboard(msg.content, btn as HTMLElement);
+              }
             });
           });
         } catch {
@@ -727,10 +714,6 @@ marked.use({
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   init();
-  const copyBtn = document.getElementById('copyBtn');
-  if (copyBtn) {
-    copyBtn.addEventListener('click', handleCopyClick);
-  }
   const abortBtn = document.getElementById('abortBtn');
   if (abortBtn) {
     abortBtn.addEventListener('click', handleAbortClick);

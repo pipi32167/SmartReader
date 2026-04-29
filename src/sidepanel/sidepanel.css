@@ -57,32 +57,6 @@ body {
   gap: 10px;
 }
 
-.copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-family: inherit;
-  color: #1a73e8;
-  background: #e8f0fe;
-  border: 1px solid #1a73e8;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.copy-btn:hover {
-  background: #1a73e8;
-  color: white;
-}
-
-.copy-btn.copied {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border-color: #4caf50;
-}
-
 .abort-btn {
   display: inline-flex;
   align-items: center;
@@ -530,6 +504,12 @@ body {
   color: #1a73e8;
   word-break: break-all;
   margin-bottom: 4px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.history-meta-url:hover {
+  text-decoration: underline;
 }
 
 .history-meta-prompt {
@@ -586,8 +566,16 @@ body {
   word-break: break-word;
 }
 
-.msg-delete-btn {
-  float: right;
+.turn-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.turn-toolbar .msg-copy-btn,
+.turn-toolbar .msg-delete-btn,
+.turn-toolbar .msg-retry-btn {
   width: 24px;
   height: 24px;
   display: flex;
@@ -600,20 +588,29 @@ body {
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s, background 0.2s;
-  margin-left: 8px;
-  margin-bottom: 4px;
 }
 
-.turn:hover .msg-delete-btn {
+.turn:hover .turn-toolbar .msg-copy-btn,
+.turn:hover .turn-toolbar .msg-delete-btn,
+.turn:hover .turn-toolbar .msg-retry-btn {
   opacity: 1;
+}
+
+.msg-copy-btn:hover {
+  background: #e8f0fe;
 }
 
 .msg-delete-btn:hover {
   background: #ffebee;
 }
 
-.msg-retry-btn {
-  float: right;
+.msg-retry-btn:hover {
+  background: #e8f5e9;
+}
+
+/* Output view current response: always show copy/retry buttons */
+.response-toolbar .msg-copy-btn,
+.response-toolbar .msg-retry-btn {
   width: 24px;
   height: 24px;
   display: flex;
@@ -624,22 +621,14 @@ body {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  opacity: 1;
-  transition: opacity 0.2s, background 0.2s;
-  margin-left: 4px;
-  margin-bottom: 4px;
+  transition: background 0.2s;
 }
 
-/* In history detail: hidden by default, show on turn hover */
-.turn .msg-retry-btn {
-  opacity: 0;
+.response-toolbar .msg-copy-btn:hover {
+  background: #e8f0fe;
 }
 
-.turn:hover .msg-retry-btn {
-  opacity: 1;
-}
-
-.msg-retry-btn:hover {
+.response-toolbar .msg-retry-btn:hover {
   background: #e8f5e9;
 }
 
