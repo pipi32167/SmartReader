@@ -3,6 +3,8 @@ import type { Prompt } from '../shared/types';
 
 let prompts: Prompt[] = [];
 
+const POPUP_INPUT_CACHE_KEY = 'popup_custom_prompt_input';
+
 async function init() {
   document.getElementById('optionsBtn')?.addEventListener('click', openOptions);
   document.getElementById('markdownBtn')?.addEventListener('click', handleMarkdownClick);
@@ -18,7 +20,27 @@ async function init() {
     }
   });
 
+  // Cache input on every keystroke
+  document.getElementById('customPrompt')?.addEventListener('input', (e) => {
+    const value = (e.target as HTMLTextAreaElement).value;
+    chrome.storage.local.set({ [POPUP_INPUT_CACHE_KEY]: value }).catch(() => {});
+  });
+
   await loadPrompts();
+
+  // Restore cached input after prompts are loaded
+  try {
+    const result = await chrome.storage.local.get(POPUP_INPUT_CACHE_KEY);
+    const cachedValue = result[POPUP_INPUT_CACHE_KEY];
+    if (cachedValue) {
+      const textarea = document.getElementById('customPrompt') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.value = cachedValue;
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 async function loadPrompts() {
@@ -141,6 +163,9 @@ async function handleCustomSend() {
       windowId: tab.windowId
     });
     console.log('[Popup] Custom prompt sent successfully');
+
+    // Clear cached input after successful send
+    chrome.storage.local.remove(POPUP_INPUT_CACHE_KEY).catch(() => {});
 
     // Close popup
     window.close();
