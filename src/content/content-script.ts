@@ -1,9 +1,26 @@
 // Content Script - Runs in the context of web pages
 import { htmlToMarkdown } from '../shared/html-to-markdown';
+import { Readability } from '@mozilla/readability';
 
 function extractMainContent(): string {
-  // Try semantic containers first (including Reddit's shreddit-post)
-  const selectors = ['article', 'main', '[role="main"]', '.content', '.post', '.article', 'shreddit-post'];
+  // 1. Try Mozilla Readability first (Firefox Reader View algorithm)
+  try {
+    const reader = new Readability(document.cloneNode(true) as Document);
+    const article = reader.parse();
+    if (article && article.content) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(article.content, 'text/html');
+      const md = htmlToMarkdown(doc.body);
+      if (md.trim().length >= 300) {
+        return md;
+      }
+    }
+  } catch {
+    // Readability failed, fall through to selector-based approach
+  }
+
+  // 2. Fallback: semantic container selectors
+  const selectors = ['article', 'main', '[role="main"]', '.content', '.post', '.article', 'shreddit-post', '#Main'];
   for (const selector of selectors) {
     const element = document.querySelector(selector);
     if (element) {
@@ -15,7 +32,7 @@ function extractMainContent(): string {
     }
   }
 
-  // Fallback: body minus junk
+  // 3. Fallback: body minus junk
   const clone = document.body.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('script, style, nav, header, footer, aside, iframe, svg').forEach(e => e.remove());
   const md = htmlToMarkdown(clone);
@@ -23,7 +40,7 @@ function extractMainContent(): string {
     return md;
   }
 
-  // Last resort: plain text extraction (handles Shadow DOM sites like Reddit)
+  // 4. Last resort: plain text extraction (handles Shadow DOM sites like Reddit)
   return document.body.innerText;
 }
 

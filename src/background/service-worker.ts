@@ -874,7 +874,7 @@ async function executePrompt(
         try {
           await chrome.runtime.sendMessage({
             type: MessageType.STREAM_ERROR,
-            error: '无法读取此页面内容。请尝试刷新页面或使用普通网页（不支持 chrome:// 等内部页面）。',
+            error: '无法读取此页面内容。请尝试刷新页面或使用普通网页（不支持 chrome:// 等内部页面）。如果是本地文件（file://），请在扩展管理器中启用「允许访问文件网址」。',
             windowId
           });
         } catch (sendErr: any) {
