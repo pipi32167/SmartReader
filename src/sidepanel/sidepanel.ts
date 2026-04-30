@@ -454,6 +454,19 @@ function renderMarkdown(content: string): string {
 // History Views
 // ============================================================================
 
+function openPromptModal(fullPrompt: string) {
+  const modal = document.getElementById('promptModal');
+  const textEl = document.getElementById('modalPromptText');
+  if (!modal || !textEl) return;
+  textEl.textContent = fullPrompt;
+  modal.classList.remove('hidden');
+}
+
+function closePromptModal() {
+  const modal = document.getElementById('promptModal');
+  if (modal) modal.classList.add('hidden');
+}
+
 function showView(view: 'output' | 'history-list' | 'history-detail') {
   currentView = view;
   const output = document.getElementById('output');
@@ -557,14 +570,25 @@ async function showHistoryDetail(id: number) {
     if (response?.success && response.data) {
       const item = response.data;
       currentHistorySupportsFollowUp = !!item.messages;
-      // Only show prompt in meta when there is no conversation thread (old records)
-      const promptDisplay = !item.messages && item.prompt ? truncate(item.prompt, 200) : '';
+      // Show prompt in meta for all records that have one
+      const hasPrompt = !!item.prompt;
+      const promptDisplay = hasPrompt ? truncate(item.prompt, 200) : '';
+      const promptFull = hasPrompt ? item.prompt : '';
+      const showViewBtn = hasPrompt && item.prompt.length > 200;
       metaEl.innerHTML = `
         <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
         ${item.url ? `<a class="history-meta-url" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>` : ''}
         ${promptDisplay ? `<div class="history-meta-prompt">${escapeHtml(promptDisplay)}</div>` : ''}
+        ${showViewBtn ? `<button class="view-prompt-btn" id="viewPromptBtn">🔍 查看完整提示词</button>` : ''}
         <div class="history-meta-time">${formatDate(item.created_at)}</div>
       `;
+
+      if (showViewBtn) {
+        const viewBtn = document.getElementById('viewPromptBtn');
+        if (viewBtn) {
+          viewBtn.addEventListener('click', () => openPromptModal(promptFull));
+        }
+      }
 
       if (item.messages) {
         try {
@@ -776,5 +800,17 @@ document.addEventListener('DOMContentLoaded', () => {
       followUpInput.style.height = 'auto';
       followUpInput.style.height = followUpInput.scrollHeight + 'px';
     });
+  }
+
+  // Modal close handlers
+  const modalOverlay = document.getElementById('promptModal');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closePromptModal();
+    });
+  }
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', closePromptModal);
   }
 });
