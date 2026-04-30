@@ -58,6 +58,35 @@ body {
   margin-bottom: 12px;
 }
 
+.content-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0;
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.context-status {
+  color: #666;
+}
+
+.context-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #555;
+  user-select: none;
+}
+
+.context-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  accent-color: #1a73e8;
+}
+
 .custom-prompt-input {
   width: 100%;
   padding: 8px 10px;

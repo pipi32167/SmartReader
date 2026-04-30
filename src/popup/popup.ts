@@ -41,6 +41,9 @@ async function init() {
   } catch {
     // Ignore storage errors
   }
+
+  // Detect selection state from current tab
+  await detectContextStatus();
 }
 
 async function loadPrompts() {
@@ -129,9 +132,43 @@ async function handlePromptClick(promptId: number) {
   }
 }
 
+async function detectContextStatus() {
+  const statusEl = document.getElementById('contextStatus');
+  if (!statusEl) return;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      statusEl.textContent = '📄 网页全文';
+      return;
+    }
+
+    // Inject content script if not already present
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content-script.js']
+      });
+    } catch {
+      // May already be injected
+    }
+
+    const response = await chrome.tabs.sendMessage(tab.id, { type: MessageType.GET_SELECTION });
+    if (response?.success && response.data?.text?.trim()) {
+      statusEl.textContent = '📝 选中文字';
+    } else {
+      statusEl.textContent = '📄 网页全文';
+    }
+  } catch {
+    // Default to full page on any error
+    statusEl.textContent = '📄 网页全文';
+  }
+}
+
 async function handleCustomSend() {
   const textarea = document.getElementById('customPrompt') as HTMLTextAreaElement;
   const userInput = textarea?.value.trim();
+  const includeContent = (document.getElementById('includeContent') as HTMLInputElement)?.checked ?? true;
 
   if (!userInput) {
     showError('请输入指令');
@@ -147,8 +184,8 @@ async function handleCustomSend() {
       return;
     }
 
-    // Prepend ${html} at the beginning as required
-    const promptTemplate = `\${html}\n${userInput}`;
+    // Build prompt template based on checkbox state
+    const promptTemplate = includeContent ? `\${html}\n${userInput}` : userInput;
 
     // Open side panel first (requires user gesture context)
     await chrome.sidePanel.open({ windowId: tab.windowId });
@@ -160,7 +197,8 @@ async function handleCustomSend() {
       promptTemplate,
       tabId: tab.id,
       tabUrl: tab.url || '',
-      windowId: tab.windowId
+      windowId: tab.windowId,
+      skipContent: !includeContent
     });
     console.log('[Popup] Custom prompt sent successfully');
 

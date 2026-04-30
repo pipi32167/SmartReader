@@ -47,6 +47,7 @@ export interface HistoryItem {
 export const MessageType = {
   // Content script
   GET_PAGE_CONTENT: 'GET_PAGE_CONTENT',
+  GET_SELECTION: 'GET_SELECTION',
 
   // Offscreen document
   PING_OFFSCREEN: 'PING_OFFSCREEN',

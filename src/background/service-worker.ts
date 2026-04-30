@@ -777,7 +777,8 @@ async function executePrompt(
   windowId: number,
   promptId?: number,
   promptTemplate?: string,
-  tabUrl?: string
+  tabUrl?: string,
+  skipContent?: boolean
 ): Promise<void> {
   // MV3 service worker can be terminated after sendResponse. Keep it alive.
   const keepAlive = setInterval(() => {
@@ -793,6 +794,56 @@ async function executePrompt(
     let pdfBase64: { filename: string; data: string } | undefined;
     let template: string;
     let pageContent: PageContent | undefined;
+
+    // Fast path: skip content fetching when user unchecked "include content"
+    if (skipContent && promptTemplate !== undefined) {
+      console.log('[Service Worker] Skip content mode, using prompt directly');
+      finalPrompt = promptTemplate;
+
+      // 2. Get API config
+      console.log('[Service Worker] Step 2: Getting API config');
+      const apiConfig = await getApiConfig();
+      console.log('[Service Worker] API config base_url:', apiConfig.base_url, 'model:', apiConfig.model, 'hasKey:', !!apiConfig.api_key);
+      if (!apiConfig.api_key) {
+        console.error('[Service Worker] API Key not configured');
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          await chrome.runtime.sendMessage({
+            type: MessageType.STREAM_ERROR,
+            error: 'API Key 未配置。请打开选项页面配置 API 设置。',
+            windowId
+          });
+        } catch (sendErr: any) {
+          console.error('[Service Worker] Failed to send STREAM_ERROR:', sendErr.message);
+        }
+        return;
+      }
+
+      // 3. Wait for side panel to fully load before sending stream messages
+      console.log('[Service Worker] Step 3: Waiting for side panel to load...');
+      await new Promise(r => setTimeout(r, 1500));
+      const preview = finalPrompt.length > 200 ? finalPrompt.slice(0, 200) + '...' : finalPrompt;
+      console.log('[Service Worker] Starting AI stream (skip content), preview:', preview);
+
+      // Create conversation state
+      conversations.delete(windowId);
+      const state: ConversationState = {
+        historyId: null,
+        title: '自定义对话',
+        url: tabUrl || '',
+        prompt: finalPrompt,
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant. Please respond in the same language as the user query.' },
+          { role: 'user', content: finalPrompt }
+        ],
+        abortController: null,
+        apiConfig
+      };
+      conversations.set(windowId, state);
+
+      await streamAIResponse(windowId, preview);
+      return;
+    }
 
     // 1. Get page content (HTML) or fetch PDF
     if (isPdf && pdfUrl) {
@@ -1186,11 +1237,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 
         // Execution
         case MessageType.EXECUTE_PROMPT: {
-          const { promptId, promptTemplate, tabId, tabUrl, windowId } = message as any;
-          console.log('[Service Worker] Received EXECUTE_PROMPT:', { promptId, promptTemplate: promptTemplate ? '(custom)' : undefined, tabId, tabUrl, windowId });
+          const { promptId, promptTemplate, tabId, tabUrl, windowId, skipContent } = message as any;
+          console.log('[Service Worker] Received EXECUTE_PROMPT:', { promptId, promptTemplate: promptTemplate ? '(custom)' : undefined, tabId, tabUrl, windowId, skipContent });
           // Execute asynchronously without blocking the response
           sendResponse({ success: true });
-          executePrompt(tabId, windowId, promptId, promptTemplate, tabUrl);
+          executePrompt(tabId, windowId, promptId, promptTemplate, tabUrl, skipContent);
           break;
         }
 

@@ -171,6 +171,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case 'GET_SELECTION': {
+          const selection = window.getSelection()?.toString() || '';
+          sendResponse({
+            success: true,
+            data: {
+              title: document.title,
+              url: location.href,
+              text: selection
+            }
+          });
+          break;
+        }
+
         default:
           sendResponse({ success: false, error: 'Unknown action' });
       }
