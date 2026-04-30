@@ -1,6 +1,6 @@
 {
   "name": "smartreader",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Summarize and ask questions about web pages using AI",
   "type": "module",
   "scripts": {
