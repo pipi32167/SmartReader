@@ -53,13 +53,27 @@
 
 1. **Configure API** — Click the extension icon → "Settings" (or right-click → Options), then enter your OpenAI-compatible API endpoint, key, and model.
 
+   ![LLM Provider Configuration](screenshots/LLM_provider.png)
+
 2. **Summarize a Page** — Open any web page, click the SmartReader icon, and select a prompt (e.g., "Summarize this page"). The AI response will stream into the side panel.
 
-3. **Ask Questions** — Use custom prompts like "What are the key takeaways?" or create your own.
+   ![Ask Page with Predefined Prompt](screenshots/ask_page_with_predefined_prompt.png)
+
+3. **Ask Questions** — Use custom prompts like "What are the key takeaways?" or create your own. You can also ask questions about selected text on the page.
+
+   ![Ask Page with Instant Prompt](screenshots/ask_page_with_instant_prompt.png)
+
+   ![Ask Selected Text with Predefined Prompt](screenshots/ask_selected_text_with_predefined_prompt.png)
+
+   After receiving an answer, you can continue asking follow-up questions in the side panel.
+
+   ![Follow-up Questions](screenshots/follow-up_questions.png)
 
 4. **Work with PDFs** — When viewing a PDF in Chrome, SmartReader will extract its text and process it just like a regular web page.
 
 5. **View History** — All AI interactions are saved locally and can be accessed from the options page.
+
+   ![History](screenshots/history.png)
 
 ---
 
@@ -74,6 +88,8 @@ Go to the **Options** page to configure:
 | Model | Model name (e.g., `gpt-4o`, `gpt-3.5-turbo`) |
 
 You can also manage custom prompts and view conversation history from the options page.
+
+![Predefined Prompt Management](screenshots/predefined_prompt_management.png)
 
 ### Prompt Variables
 

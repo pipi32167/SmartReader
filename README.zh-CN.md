@@ -53,13 +53,27 @@
 
 1. **配置 API** — 点击扩展图标 → "设置"（或右键 → 选项），输入兼容 OpenAI 的 API 端点、密钥和模型。
 
+   ![LLM 提供商配置](screenshots/LLM_provider.png)
+
 2. **总结页面** — 打开任意网页，点击 SmartReader 图标，选择一个提示词（如"总结此页面"）。AI 回复将以流式方式展示在侧边面板中。
 
-3. **提出问题** — 使用自定义提示词，如"关键要点是什么？"，或创建你自己的提示词。
+   ![使用预定义提示词询问页面](screenshots/ask_page_with_predefined_prompt.png)
+
+3. **提出问题** — 使用自定义提示词，如"关键要点是什么？"，或创建你自己的提示词。你也可以针对页面上选中的文本提问。
+
+   ![使用即时提示词询问页面](screenshots/ask_page_with_instant_prompt.png)
+
+   ![使用预定义提示词询问选中文本](screenshots/ask_selected_text_with_predefined_prompt.png)
+
+   收到回答后，你可以在侧边面板中继续追问。
+
+   ![追问](screenshots/follow-up_questions.png)
 
 4. **处理 PDF** — 在 Chrome 中查看 PDF 时，SmartReader 会提取其文本并像普通网页一样处理。
 
 5. **查看历史** — 所有 AI 交互都保存在本地，可以在选项页面中查看。
+
+   ![历史记录](screenshots/history.png)
 
 ---
 
@@ -74,6 +88,8 @@
 | Model | 模型名称（例如：`gpt-4o`、`gpt-3.5-turbo`） |
 
 你也可以在选项页面管理自定义提示词和查看对话历史。
+
+![预定义提示词管理](screenshots/predefined_prompt_management.png)
 
 ### 提示词变量
 
