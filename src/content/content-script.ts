@@ -1,21 +1,53 @@
 // Content Script - Runs in the context of web pages
 import { htmlToMarkdown } from '../shared/html-to-markdown';
+import { Readability } from '@mozilla/readability';
 
 function extractMainContent(): string {
-  // Try semantic containers first (including Reddit's shreddit-post)
-  const selectors = ['article', 'main', '[role="main"]', '.content', '.post', '.article', 'shreddit-post'];
+  // 1. Try Mozilla Readability (Firefox Reader View algorithm)
+  let readabilityMd = '';
+  try {
+    const reader = new Readability(document.cloneNode(true) as Document);
+    const article = reader.parse();
+    if (article && article.content) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(article.content, 'text/html');
+      const md = htmlToMarkdown(doc.body);
+      if (md.trim().length >= 300) {
+        readabilityMd = md;
+      }
+    }
+  } catch {
+    // Readability failed, continue
+  }
+
+  // 2. Try semantic container selectors
+  let selectorMd = '';
+  const selectors = ['#Main', 'article', 'main', '[role="main"]', '.content', '.post', '.article', 'shreddit-post'];
   for (const selector of selectors) {
     const element = document.querySelector(selector);
     if (element) {
       const md = htmlToMarkdown(element);
       if (md.trim().length >= 300) {
-        return md;
+        selectorMd = md;
+        break;
       }
-      // Content too short, continue to next selector or fallback
     }
   }
 
-  // Fallback: body minus junk
+  // 3. Choose the better result:
+  //    - If selector output is significantly longer (>1.5x), the page likely has
+  //      a comment/forum section that Readability stripped. Prefer selector.
+  //    - Otherwise prefer Readability for clean article extraction.
+  if (readabilityMd && selectorMd) {
+    if (selectorMd.length > readabilityMd.length * 1.5) {
+      return selectorMd;
+    }
+    return readabilityMd;
+  }
+  if (readabilityMd) return readabilityMd;
+  if (selectorMd) return selectorMd;
+
+  // 4. Fallback: body minus junk
   const clone = document.body.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('script, style, nav, header, footer, aside, iframe, svg').forEach(e => e.remove());
   const md = htmlToMarkdown(clone);
@@ -23,7 +55,7 @@ function extractMainContent(): string {
     return md;
   }
 
-  // Last resort: plain text extraction (handles Shadow DOM sites like Reddit)
+  // 5. Last resort: plain text extraction (handles Shadow DOM sites like Reddit)
   return document.body.innerText;
 }
 
@@ -133,6 +165,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               title: document.title,
               url: location.href,
               html: finalMarkdown,
+              text: selection
+            }
+          });
+          break;
+        }
+
+        case 'GET_SELECTION': {
+          const selection = window.getSelection()?.toString() || '';
+          sendResponse({
+            success: true,
+            data: {
+              title: document.title,
+              url: location.href,
               text: selection
             }
           });

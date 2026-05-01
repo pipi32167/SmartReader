@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartReader 隐私政策</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.7;
+      color: #333;
+      background: #f5f5f5;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #222;
+      margin-top: 28px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    p { margin-bottom: 12px; }
+    ul {
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+    li { margin-bottom: 6px; }
+    .highlight {
+      background: #e8f0fe;
+      border-left: 3px solid #1a73e8;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      color: #888;
+      font-size: 13px;
+    }
+    code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SmartReader 隐私政策</h1>
+    <p class="subtitle">最后更新：2026年4月29日</p>
+
+    <div class="highlight">
+      <strong>核心原则</strong>：SmartReader 是一款纯本地运行的浏览器扩展。你的网页内容、API 密钥和历史记录均存储在你的本地设备上，我们不会收集、存储或传输任何数据到 SmartReader 的服务器。
+    </div>
+
+    <h2>1. 我们收集什么信息</h2>
+    <p>SmartReader 仅在本地处理以下数据：</p>
+    <ul>
+      <li><strong>网页内容</strong>：你当前浏览的网页 HTML 内容（提取后转换为 Markdown），用于发送到 AI API 进行总结</li>
+      <li><strong>选中文字</strong>：你在网页上手动选中的文本（如果使用 <code>${text}</code> 变量）</li>
+      <li><strong>PDF 内容</strong>：当当前标签页为 PDF 时，下载并提取其文本内容</li>
+      <li><strong>AI API 配置</strong>：你在设置页面填写的 API Base URL、API Key 和模型名称</li>
+      <li><strong>提示词模板</strong>：你创建或编辑的自定义提示词</li>
+      <li><strong>对话历史</strong>：你与 AI 的问答记录</li>
+    </ul>
+
+    <h2>2. 数据如何使用</h2>
+    <ul>
+      <li>网页内容和选中文字仅被发送到<strong>你自己配置的 AI API 端点</strong>（如 OpenAI、Claude、Kimi 等）</li>
+      <li>我们<strong>不会</strong>将任何数据发送到 SmartReader 拥有的服务器</li>
+      <li>API Key 仅用于向你的 AI 服务提供商进行身份验证</li>
+    </ul>
+
+    <h2>3. 数据存储位置</h2>
+    <p>所有数据均存储在你的本地设备上：</p>
+    <ul>
+      <li>使用浏览器 <strong>Origin Private File System (OPFS)</strong> 持久化 SQLite 数据库</li>
+      <li>数据库文件名：<code>smartreader.db</code></li>
+      <li>卸载扩展后，数据将随扩展一起被删除</li>
+    </ul>
+
+    <h2>4. 第三方服务</h2>
+    <p>SmartReader 本身不依赖任何第三方服务器，但会调用你配置的 AI API 服务。请注意：</p>
+    <ul>
+      <li>你配置的 AI 服务提供商（如 OpenAI、Anthropic、Moonshot AI 等）可能有其独立的隐私政策</li>
+      <li>请查阅你所使用的 AI 服务商的隐私政策以了解其数据处理 practices</li>
+    </ul>
+
+    <h2>5. 权限说明</h2>
+    <p>SmartReader 申请以下浏览器权限，均出于功能必需：</p>
+    <ul>
+      <li><code>activeTab</code>：获取当前标签页的网页内容</li>
+      <li><code>scripting</code>：向当前页面注入内容脚本以提取文本</li>
+      <li><code>sidePanel</code>：在侧边面板中展示 AI 响应</li>
+      <li><code>storage</code>：管理扩展的配置数据</li>
+      <li><code>offscreen</code>：在后台运行 SQLite 和 PDF 解析（WASM 需要）</li>
+      <li><code>&lt;all_urls&gt;</code>：允许在任何网页上使用内容提取功能</li>
+    </ul>
+
+    <h2>6. 数据安全</h2>
+    <ul>
+      <li>API Key 以明文形式存储在本地 SQLite 中，安全性等同于浏览器本地存储边界</li>
+      <li>建议不要与他人共享你的浏览器配置文件</li>
+      <li>所有网络请求均通过 HTTPS 发送到你配置的 API 端点</li>
+    </ul>
+
+    <h2>7. 联系我们</h2>
+    <p>如有关于隐私的疑问，请通过 GitHub Issues 联系我们：</p>
+    <p><a href="https://github.com/pipi32167/SmartReader/issues" target="_blank">https://github.com/pipi32167/SmartReader/issues</a></p>
+
+    <div class="footer">
+      <p>© 2026 SmartReader. 本隐私政策可能会随产品更新而修订。</p>
+    </div>
+  </div>
+</body>
+</html>

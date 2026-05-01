@@ -12,34 +12,77 @@
       <div class="header-content">
         <span class="logo">🤖 SmartReader</span>
         <div class="header-right">
+          <button id="historyBtn" class="history-btn" title="历史记录">📜 历史</button>
           <button id="abortBtn" class="abort-btn hidden" title="中断生成">⏹ 中断</button>
-          <button id="copyBtn" class="copy-btn hidden" title="拷贝 Markdown">📋 拷贝 Markdown</button>
           <div class="status" id="status">
             <span class="status-dot" id="statusDot"></span>
             <span class="status-text" id="statusText">就绪</span>
           </div>
         </div>
       </div>
-      <div id="promptPreview" class="prompt-preview hidden"></div>
     </header>
 
     <main class="main">
+      <!-- Output view -->
       <div id="output" class="output">
-        <div class="welcome">
-          <h2>欢迎使用 SmartReader</h2>
-          <p>点击扩展图标，选择一个提示词来开始。</p>
-          <div class="tips">
-            <h3>💡 提示词变量</h3>
-            <ul>
-              <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
-              <li><code>${text}</code> - 选中的文字</li>
-            </ul>
+        <div id="promptPreview" class="prompt-preview hidden"></div>
+        <div id="conversationLog" class="conversation-log"></div>
+        <div id="currentResponse" class="current-response">
+          <div class="welcome">
+            <h2>欢迎使用 SmartReader</h2>
+            <p>点击扩展图标，选择一个提示词来开始。</p>
+            <div class="tips">
+              <h3>💡 提示词变量</h3>
+              <ul>
+                <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
+                <li><code>${text}</code> - 选中的文字</li>
+              </ul>
+            </div>
           </div>
         </div>
+      </div>
+
+      <!-- History list view -->
+      <div id="historyListView" class="history-list-view hidden">
+        <div class="history-toolbar">
+          <button id="backToOutputBtn" class="back-btn">← 返回</button>
+          <button id="clearHistoryBtn" class="clear-btn">🗑 清空</button>
+        </div>
+        <input type="text" id="historySearch" class="history-search" placeholder="搜索标题、URL、提示词...">
+        <div id="historyList" class="history-list"></div>
+        <div id="historyEmpty" class="history-empty hidden">暂无历史记录</div>
+      </div>
+
+      <!-- History detail view -->
+      <div id="historyDetailView" class="history-detail-view hidden">
+        <div class="history-toolbar">
+          <button id="backToListBtn" class="back-btn">← 返回列表</button>
+          <button id="deleteHistoryBtn" class="delete-btn">🗑 删除</button>
+        </div>
+        <div class="history-meta" id="historyMeta"></div>
+        <div id="historyDetailContent" class="markdown-content"></div>
       </div>
     </main>
 
     <!-- loading removed -->
+
+    <div id="followUpArea" class="follow-up-area hidden">
+      <textarea id="followUpInput" placeholder="继续提问..." rows="1"></textarea>
+      <button id="followUpSendBtn">发送</button>
+    </div>
+  </div>
+
+  <!-- Prompt Modal -->
+  <div id="promptModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>💡 提示词</h3>
+        <button class="modal-close" id="modalCloseBtn" title="关闭">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre id="modalPromptText"></pre>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./sidepanel.ts"></script>

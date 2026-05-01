@@ -11,7 +11,8 @@
     <header class="header">
       <h1 class="title">SmartReader</h1>
       <div class="header-actions">
-        <button id="markdownBtn" class="icon-btn" title="查看网页 Markdown">📄</button>
+        <button id="historyBtn" class="icon-btn" title="历史记录">📜</button>
+        <button id="markdownBtn" class="icon-btn" title="查看网页 Markdown">👁</button>
         <button id="optionsBtn" class="icon-btn" title="设置">⚙️</button>
       </div>
     </header>
@@ -24,6 +25,13 @@
         rows="2"
         placeholder="输入自定义指令，例如：总结这篇文章"
       ></textarea>
+      <div class="content-context-bar">
+        <span id="contextStatus" class="context-status">📄 网页全文</span>
+        <label class="context-checkbox-label">
+          <input type="checkbox" id="includeContent" checked>
+          <span>附带页面内容</span>
+        </label>
+      </div>
       <button id="customSendBtn" class="btn btn-primary btn-full">🚀 发送</button>
     </div>
 

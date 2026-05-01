@@ -1,6 +1,10 @@
 import initSqlJs from 'sql.js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { MessageType } from '../shared/types';
 import { DB_FILENAME } from '../shared/constants';
+
+// pdfjs-dist tries to spawn a Web Worker by default. Disable it and parse on the main thread.
+pdfjsLib.GlobalWorkerOptions.disableWorker = true;
 
 let db: any = null;
 let SQL: any = null;
@@ -51,6 +55,11 @@ async function initDatabase(): Promise<void> {
     initializeSchema();
     console.log('[Offscreen] Schema initialized');
 
+    // Migrate history table if needed
+    console.log('[Offscreen] Checking history table migration...');
+    await migrateHistoryTable();
+    console.log('[Offscreen] History migration check complete');
+
     // Insert default data if needed
     console.log('[Offscreen] Checking default data...');
     await ensureDefaults();
@@ -84,6 +93,17 @@ function initializeSchema(): void {
       title TEXT NOT NULL,
       prompt TEXT NOT NULL,
       sort_order INTEGER DEFAULT 0,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      url TEXT,
+      prompt TEXT,
+      response TEXT NOT NULL,
+      messages TEXT,
       created_at INTEGER,
       updated_at INTEGER
     );
@@ -122,6 +142,26 @@ async function ensureDefaults(): Promise<void> {
   }
 }
 
+async function migrateHistoryTable(): Promise<void> {
+  if (!db) return;
+  try {
+    const result = db.exec('PRAGMA table_info(history)');
+    if (!result || result.length === 0) return;
+    const columns = result[0].values.map((row: any[]) => row[1] as string);
+    if (!columns.includes('messages')) {
+      db.run('ALTER TABLE history ADD COLUMN messages TEXT');
+      console.log('[Offscreen] Added messages column to history');
+    }
+    if (!columns.includes('updated_at')) {
+      db.run('ALTER TABLE history ADD COLUMN updated_at INTEGER');
+      console.log('[Offscreen] Added updated_at column to history');
+    }
+    await persistDatabase();
+  } catch (error: any) {
+    console.error('[Offscreen] History migration failed:', error);
+  }
+}
+
 async function persistDatabase(): Promise<void> {
   if (!db || !fileHandle) return;
 
@@ -141,6 +181,7 @@ const OFFSCREEN_MESSAGE_TYPES = new Set([
   MessageType.PING_OFFSCREEN,
   MessageType.DB_QUERY,
   MessageType.DB_EXEC,
+  MessageType.EXTRACT_PDF_TEXT,
 ]);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -182,6 +223,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: true });
           }
           break;
+
+        case MessageType.EXTRACT_PDF_TEXT: {
+          const base64 = message.base64 as string;
+          try {
+            const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+            const parts: string[] = [];
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              const pageText = content.items
+                .map((item: any) => item.str)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (pageText) parts.push(pageText);
+            }
+            sendResponse({ success: true, text: parts.join('\n\n') });
+          } catch (error: any) {
+            console.error('[Offscreen] PDF text extraction failed:', error);
+            sendResponse({ success: false, error: error.message || 'PDF 文本提取失败' });
+          }
+          break;
+        }
       }
     } catch (error: any) {
       console.error('[Offscreen] Error handling message:', error);

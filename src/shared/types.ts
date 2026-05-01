@@ -25,10 +25,29 @@ export interface PageContent {
   text: string;
 }
 
+// Conversation message
+export interface ConversationMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+// History record
+export interface HistoryItem {
+  id: number;
+  title: string;
+  url: string;
+  prompt: string;
+  response: string;
+  messages?: string;
+  created_at: number;
+  updated_at?: number;
+}
+
 // Message types for communication between components
 export const MessageType = {
   // Content script
   GET_PAGE_CONTENT: 'GET_PAGE_CONTENT',
+  GET_SELECTION: 'GET_SELECTION',
 
   // Offscreen document
   PING_OFFSCREEN: 'PING_OFFSCREEN',
@@ -44,11 +63,23 @@ export const MessageType = {
   GET_PROMPTS: 'GET_PROMPTS',
   SAVE_PROMPT: 'SAVE_PROMPT',
   DELETE_PROMPT: 'DELETE_PROMPT',
+  REORDER_PROMPTS: 'REORDER_PROMPTS',
   GET_API_CONFIG: 'GET_API_CONFIG',
   SAVE_API_CONFIG: 'SAVE_API_CONFIG',
+  TEST_API_CONNECTION: 'TEST_API_CONNECTION',
+  EXTRACT_PDF_TEXT: 'EXTRACT_PDF_TEXT',
+
+  // History operations
+  GET_HISTORY_LIST: 'GET_HISTORY_LIST',
+  GET_HISTORY_DETAIL: 'GET_HISTORY_DETAIL',
+  DELETE_HISTORY: 'DELETE_HISTORY',
+  CLEAR_HISTORY: 'CLEAR_HISTORY',
+  UPDATE_HISTORY: 'UPDATE_HISTORY',
 
   // Side Panel → Service Worker
   ABORT_STREAM: 'ABORT_STREAM',
+  SEND_FOLLOW_UP: 'SEND_FOLLOW_UP',
+  RETRY_MESSAGE: 'RETRY_MESSAGE',
 
   // Service Worker → Side Panel
   STREAM_START: 'STREAM_START',
@@ -56,6 +87,9 @@ export const MessageType = {
   STREAM_COMPLETE: 'STREAM_COMPLETE',
   STREAM_ERROR: 'STREAM_ERROR',
   STREAM_ABORTED: 'STREAM_ABORTED',
+
+  // Popup → Side Panel
+  SHOW_HISTORY_VIEW: 'SHOW_HISTORY_VIEW',
 } as const;
 
 export type MessageTypeValue = typeof MessageType[keyof typeof MessageType];
