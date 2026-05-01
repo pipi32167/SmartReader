@@ -102,29 +102,91 @@ https://github.com/pipi32167/SmartReader
 
 ## 四、打包 ZIP
 
-已准备好构建产物：`SmartReader-v1.0.1.zip`
+已准备好构建产物：`SmartReader-v1.0.5.zip`
 
 如需重新打包：
 
 ```bash
 npm run build
-cd dist && zip -r ../SmartReader-v1.0.1.zip . -x "*.map"
+cd dist && zip -r ../SmartReader-v1.0.5.zip . -x "*.map"
 ```
 
 ---
 
-## 五、上传与提交审核
+## 五、Privacy Practices 填写指南
+
+上传 ZIP 后，Chrome Web Store 会要求你在 **Privacy practices** 标签页填写多项权限理由。以下是可直接复制粘贴的内容：
+
+### Single purpose description
+
+```
+本扩展使用 AI API 总结网页内容，并基于当前页面回答用户问题。
+```
+
+### activeTab
+
+```
+activeTab 权限用于在用户点击扩展图标或使用快捷键时获取当前活动标签页的内容。提取的内容会被转换为 Markdown 并发送到用户自行配置的 AI API 进行总结或问答。未经用户明确操作，不会访问任何标签页数据。
+```
+
+### Host permission (<all_urls>)
+
+```
+<all_urls> 主机权限是必要的，因为用户可能希望总结或提问他们访问的任何网页。扩展仅在用户明确调用时访问当前标签页内容，所有内容均在本地处理或直接发送到用户自己的 AI API 端点。
+```
+
+### Offscreen
+
+```
+offscreen 权限是必需的，因为 Manifest V3 的 Service Worker 无法执行 WASM 或访问 OPFS。SmartReader 使用 offscreen document 运行 sql.js（SQLite WASM）进行本地数据库操作，以及 pdfjs-dist 进行 PDF 文本提取，并将数据持久化到 OPFS。
+```
+
+### Remote code
+
+```
+SmartReader 包含打包的 WASM 文件（用于 SQLite 操作的 sql-wasm.wasm）并使用 pdfjs-dist 进行 PDF 解析。这些文件打包在扩展内部，通过 web_accessible_resources 本地加载。不会从远程服务器获取或执行任何代码。内容安全策略包含 'wasm-unsafe-eval' 仅用于允许这些本地托管的 WASM 模块执行。
+```
+
+### Scripting
+
+```
+scripting 权限用于将内容脚本（content-script.js）注入当前页面以提取其 HTML 内容并转换为 Markdown。此注入仅在用户通过弹出窗口或快捷键明确触发扩展时发生。
+```
+
+### Side Panel
+
+```
+sidePanel 权限用于打开和展示侧边面板 UI，AI 流式响应在此实时显示并支持 Markdown 渲染。这为用户提供了一个简洁、无干扰的界面来阅读 AI 生成的摘要并进行追问。
+```
+
+### Storage
+
+```
+storage 权限用于保存扩展设置（API 配置、自定义提示词），并在 AI 流式响应期间通过读写 chrome.storage.local 实现保活机制，防止 Service Worker 在流式传输中途被终止。
+```
+
+### 数据使用合规认证
+
+在页面底部勾选 **"I certify that my data usage complies with the Chrome Web Store Developer Program Policies"**。
+
+> ⚠️ 你还需在 **Settings** 页面提供并验证发布者联系邮箱，才能最终发布。
+
+---
+
+## 六、上传与提交审核
 
 ### 步骤
 
 1. 访问 [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
-2. 点击 **New item** → 上传 `SmartReader-v1.0.1.zip`
+2. 点击 **New item** → 上传 `SmartReader-v1.0.5.zip`
 3. 填写商店列表信息：
    - **Store listing**（中文）：填写中文名称、描述、截图
    - **Store listing**（English）：可同时填写英文版本（可选但推荐）
    - **Privacy** → **Privacy policy URL**：`https://pipi32167.github.io/SmartReader/privacy-policy.html`
    - **Distribution**：选择 **Public**（公开）或 **Unlisted**（不公开列出）
-4. 点击 **Submit for review**
+4. 在 **Privacy practices** 标签页按上方指南填写所有权限理由
+5. 在 **Settings** 页面填写并验证联系邮箱
+6. 点击 **Submit for review**
 
 ### 审核时间
 
@@ -134,15 +196,15 @@ cd dist && zip -r ../SmartReader-v1.0.1.zip . -x "*.map"
 
 | 原因 | 应对 |
 |------|------|
-| `<all_urls>` 权限理由不充分 | 已在描述中说明：「允许在任何网页上使用内容提取功能」 |
+| `<all_urls>` 权限理由不充分 | 使用上方提供的 host permission 理由 |
 | 缺少隐私政策 | 已准备，确保 GitHub Pages 可访问 |
-| 截图不符合要求 | 截图必须展示扩展真实功能，不能是占位图 |
+| 截图不符合要求 | 截图必须展示扩展真实功能，不能是占位图（screenshots/ 目录已准备） |
 | 描述含糊不清 | 使用上方提供的描述模板 |
-| 远程代码 | ✅ 本扩展无远程代码注入，仅调用用户配置的 API（fetch） |
+| 远程代码 / WASM | 使用上方提供的 remote code 理由说明本地 WASM 使用 |
 
 ---
 
-## 六、审核通过后
+## 七、审核通过后
 
 审核通过后，扩展会在 Chrome Web Store 上架。你可以在 Dashboard 中：
 
@@ -152,7 +214,7 @@ cd dist && zip -r ../SmartReader-v1.0.1.zip . -x "*.map"
 
 ---
 
-## 七、后续更新流程
+## 八、后续更新流程
 
 每次发布新版本时：
 

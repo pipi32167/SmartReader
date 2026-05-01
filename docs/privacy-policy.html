@@ -115,13 +115,14 @@
     <h2>5. 权限说明</h2>
     <p>SmartReader 申请以下浏览器权限，均出于功能必需：</p>
     <ul>
-      <li><code>activeTab</code>：获取当前标签页的网页内容</li>
-      <li><code>scripting</code>：向当前页面注入内容脚本以提取文本</li>
-      <li><code>sidePanel</code>：在侧边面板中展示 AI 响应</li>
-      <li><code>storage</code>：管理扩展的配置数据</li>
-      <li><code>offscreen</code>：在后台运行 SQLite 和 PDF 解析（WASM 需要）</li>
-      <li><code>&lt;all_urls&gt;</code>：允许在任何网页上使用内容提取功能</li>
+      <li><code>activeTab</code>：在用户点击扩展图标或使用快捷键时获取当前标签页的网页内容，用于提取 Markdown 并发送到用户配置的 AI API</li>
+      <li><code>scripting</code>：向当前页面动态注入内容脚本（content-script.js）以提取 HTML 并转换为 Markdown</li>
+      <li><code>sidePanel</code>：在 Chrome 侧边面板中展示 AI 流式响应和 Markdown 渲染结果</li>
+      <li><code>storage</code>：保存扩展配置数据（API 配置、自定义提示词），并在 AI 流式响应期间通过读写 chrome.storage.local 防止 Service Worker 被终止</li>
+      <li><code>offscreen</code>：Manifest V3 Service Worker 无法执行 WASM 或访问 OPFS，因此使用 offscreen document 运行 sql.js（SQLite WASM）和 pdfjs-dist 进行本地数据库操作与 PDF 文本提取</li>
+      <li><code>&lt;all_urls&gt;</code>：允许在用户访问的任何网页上使用内容提取功能</li>
     </ul>
+    <p><strong>关于 WASM / Remote code：</strong>扩展包含打包在本地的 <code>sql-wasm.wasm</code> 文件（用于 SQLite 数据库操作）以及 pdfjs-dist 库（用于 PDF 解析）。这些代码均通过 <code>web_accessible_resources</code> 本地加载，不会从任何远程服务器获取或执行外部代码。内容安全策略（CSP）中的 <code>'wasm-unsafe-eval'</code> 仅用于允许这些本地托管的 WASM 模块正常运行。</p>
 
     <h2>6. 数据安全</h2>
     <ul>
