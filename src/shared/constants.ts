@@ -23,4 +23,4 @@ export const DEFAULT_PROMPTS = [
 export const DB_FILENAME = 'smartreader.db';
 
 // Maximum content length to send to AI (approximate characters)
-export const MAX_CONTENT_LENGTH = 30000;
+export const MAX_CONTENT_LENGTH = 1000000;

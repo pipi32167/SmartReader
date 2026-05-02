@@ -176,7 +176,7 @@ Vite 配置（`vite.config.ts`）定义了多个 Rollup 入口：
 
 ### Prompt Variables
 提示词模板支持两个变量：
-- `${html}` — 页面内容转换后的 Markdown（截断至 `MAX_CONTENT_LENGTH`，目前为 30,000 字符）
+- `${html}` — 页面内容转换后的 Markdown（截断至 `MAX_CONTENT_LENGTH`，目前为 1,000,000 字符）
 - `${text}` — 用户当前选中的文本
 
 ### Side Panel Window Filtering
