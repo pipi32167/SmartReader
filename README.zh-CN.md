@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/pipi32167/SmartReader)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Chrome Extension](https://img.shields.io/badge/chrome%20extension-MV3-orange)]()
+[![Chrome Extension](https://img.shields.io/badge/chrome%20extension-MV3-orange)](https://chromewebstore.google.com/detail/smartreader/mohkobodogljjhchhaodhdckkhfmaffk?hl=en-US&utm_source=ext_sidebar)
 
 > 一款基于 Chrome Extension Manifest V3 的浏览器扩展，使用 AI API 总结网页内容并回答你的问题。
 
@@ -24,6 +24,10 @@
 ---
 
 ## 📦 安装
+
+### 从 Chrome Web Store 安装
+
+最简单的安装方式是从 [Chrome Web Store](https://chromewebstore.google.com/detail/smartreader/mohkobodogljjhchhaodhdckkhfmaffk?hl=en-US&utm_source=ext_sidebar) 安装 SmartReader。
 
 ### 从源码安装（开发者模式）
 

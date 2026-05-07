@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/pipi32167/SmartReader)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Chrome Extension](https://img.shields.io/badge/chrome%20extension-MV3-orange)]()
+[![Chrome Extension](https://img.shields.io/badge/chrome%20extension-MV3-orange)](https://chromewebstore.google.com/detail/smartreader/mohkobodogljjhchhaodhdckkhfmaffk?hl=en-US&utm_source=ext_sidebar)
 
 > A Chrome Extension that summarizes web pages and answers your questions using AI APIs.
 
@@ -24,6 +24,10 @@
 ---
 
 ## 📦 Installation
+
+### Install from Chrome Web Store
+
+The easiest way to install SmartReader is from the [Chrome Web Store](https://chromewebstore.google.com/detail/smartreader/mohkobodogljjhchhaodhdckkhfmaffk?hl=en-US&utm_source=ext_sidebar).
 
 ### Install from Source (Developer Mode)
 
