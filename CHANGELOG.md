@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8 - 2026-05-07
+
+### Documentation
+- Update Chrome Web Store extension URL in README
+
 ## 1.0.5 - 2026-04-30
 
 ### Features

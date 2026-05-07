@@ -1,6 +1,6 @@
 # SmartReader
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/pipi32167/SmartReader)
+[![Version](https://img.shields.io/badge/version-1.0.8-blue)](https://github.com/pipi32167/SmartReader)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/chrome%20extension-MV3-orange)](https://chromewebstore.google.com/detail/smartreader/mohkobodogljjhchhaodhdckkhfmaffk?hl=en-US&utm_source=ext_sidebar)
 
