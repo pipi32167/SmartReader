@@ -65,6 +65,14 @@ export default defineConfig({
           }
           return '[name][extname]';
         },
+        manualChunks: (id) => {
+          if (id.includes('node_modules/tesseract.js')) {
+            return 'tesseract';
+          }
+          if (id.includes('node_modules/pdfjs-dist')) {
+            return 'pdfjs';
+          }
+        },
       },
     },
   },
@@ -78,6 +86,12 @@ export default defineConfig({
           copyFileSync(
             resolve(__dirname, 'node_modules/sql.js/dist/sql-wasm.wasm'),
             resolve(__dirname, 'dist/sql-wasm.wasm')
+          );
+
+          // Copy pdf.worker.mjs for pdfjs-dist v5 Web Worker
+          copyFileSync(
+            resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+            resolve(__dirname, 'dist/pdf.worker.mjs')
           );
 
           const distDir = resolve(__dirname, 'dist');

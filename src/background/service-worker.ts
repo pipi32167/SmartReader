@@ -1,6 +1,7 @@
 import { MessageType } from '../shared/types';
 import type { ApiConfig, Prompt, PageContent, ExtensionMessage } from '../shared/types';
 import { MAX_CONTENT_LENGTH } from '../shared/constants';
+import { arrayBufferToBase64 } from '../shared/utils';
 
 let offscreenReady = false;
 let pendingEnsure: Promise<void> | null = null;
@@ -439,7 +440,7 @@ function extractFilenameFromDisposition(value: string): string | null {
  * Resolve a URL to its underlying PDF URL.
  * Returns the PDF URL if the given URL is or points to a PDF, otherwise null.
  */
-function resolvePdfUrl(url: string): string | null {
+async function resolvePdfUrl(url: string): Promise<string | null> {
   try {
     const u = new URL(url);
     // Direct PDF link
@@ -465,6 +466,18 @@ function resolvePdfUrl(url: string): string | null {
       const src = u.searchParams.get('src');
       if (src) return src;
     }
+
+    // Ambiguous URL: try HEAD request to check Content-Type
+    try {
+      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      const ct = response.headers.get('content-type') || '';
+      if (ct.includes('application/pdf')) {
+        return response.url;
+      }
+    } catch {
+      // HEAD failed, fall through to null
+    }
+
     return null;
   } catch {
     return null;
@@ -542,15 +555,31 @@ async function fetchPdfAsBase64(url: string): Promise<{ filename: string; data: 
  */
 async function extractPdfTextViaOffscreen(arrayBuffer: ArrayBuffer): Promise<string> {
   await ensureOffscreenDocument();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const base64 = arrayBufferToBase64(arrayBuffer);
   const response = await chrome.runtime.sendMessage({
     type: MessageType.EXTRACT_PDF_TEXT,
     base64
   });
-  if (!response.success) {
-    throw new Error(response.error || 'PDF 文本提取失败');
+  if (!response || !response.success) {
+    throw new Error(response?.error || 'PDF 文本提取失败（offscreen 未返回响应）');
   }
   return response.text;
+}
+
+/**
+ * Send PDF bytes to the offscreen document for full PDF → HTML → Markdown conversion.
+ */
+async function convertPdfToMarkdownViaOffscreen(arrayBuffer: ArrayBuffer): Promise<string> {
+  await ensureOffscreenDocument();
+  const base64 = arrayBufferToBase64(arrayBuffer);
+  const response = await chrome.runtime.sendMessage({
+    type: MessageType.CONVERT_PDF_TO_MARKDOWN,
+    base64
+  });
+  if (!response || !response.success) {
+    throw new Error(response?.error || 'PDF 转换为 Markdown 失败（offscreen 未返回响应）');
+  }
+  return response.markdown;
 }
 
 // ============================================================================
@@ -786,7 +815,7 @@ async function executePrompt(
   }, 4000);
 
   try {
-    const pdfUrl = tabUrl ? resolvePdfUrl(tabUrl) : null;
+    const pdfUrl = tabUrl ? await resolvePdfUrl(tabUrl) : null;
     const isPdf = pdfUrl !== null;
     console.log('[Service Worker] Tab URL:', tabUrl, 'isPdf:', isPdf, 'pdfUrl:', pdfUrl);
 
@@ -866,6 +895,17 @@ async function executePrompt(
         return;
       }
 
+      // Convert PDF to Markdown for prompt content
+      let pdfMarkdown = '';
+      try {
+        console.log('[Service Worker] Converting PDF to Markdown for prompt...');
+        const arrayBuffer = Uint8Array.from(atob(pdfBase64.data), c => c.charCodeAt(0)).buffer;
+        pdfMarkdown = await convertPdfToMarkdownViaOffscreen(arrayBuffer);
+        console.log('[Service Worker] PDF Markdown length:', pdfMarkdown.length);
+      } catch (convertErr: any) {
+        console.warn('[Service Worker] PDF to Markdown conversion failed, using hint only:', convertErr.message);
+      }
+
       // Get prompt template
       if (promptTemplate !== undefined) {
         template = promptTemplate;
@@ -888,9 +928,12 @@ async function executePrompt(
         template = prompt.prompt;
       }
 
-      // Replace variables: ${html} becomes a PDF hint, ${text} stays as selection (empty for PDFs)
+      // Replace variables: ${html} becomes PDF Markdown (or hint if conversion failed)
+      const htmlContent = pdfMarkdown
+        ? pdfMarkdown.substring(0, MAX_CONTENT_LENGTH)
+        : `（以下是一份 PDF 文件：${tabUrl}）`;
       finalPrompt = template
-        .replace(/\$\{html\}/g, `（以下是一份 PDF 文件：${tabUrl}）`)
+        .replace(/\$\{html\}/g, htmlContent)
         .replace(/\$\{text\}/g, '(未选中文字)');
       console.log('[Service Worker] PDF prompt length:', finalPrompt.length);
       // Conversation state will be created after API config is loaded
@@ -1031,21 +1074,43 @@ async function executePrompt(
 async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string): Promise<void> {
   try {
     // Check if PDF page
-    const pdfUrl = tabUrl ? resolvePdfUrl(tabUrl) : null;
+    const pdfUrl = tabUrl ? await resolvePdfUrl(tabUrl) : null;
     if (pdfUrl) {
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_START,
-        windowId
-      });
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_CHUNK,
-        content: `> 📄 当前页面是 PDF 文件：\`${tabUrl}\`\n\nPDF 内容无法直接以 Markdown 显示。请使用「总结页面」等提示词让 AI 解析此 PDF。`,
-        windowId
-      });
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_COMPLETE,
-        windowId
-      });
+      try {
+        console.log('[Service Worker] PDF detected, converting to Markdown...');
+        const pdf = await fetchPdfAsBase64(pdfUrl);
+        const arrayBuffer = Uint8Array.from(atob(pdf.data), c => c.charCodeAt(0)).buffer;
+        const markdown = await convertPdfToMarkdownViaOffscreen(arrayBuffer);
+
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_START,
+          windowId
+        });
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_CHUNK,
+          content: `> 📄 PDF 文件：\`${tabUrl}\`\n\n---\n\n${markdown}`,
+          windowId
+        });
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_COMPLETE,
+          windowId
+        });
+      } catch (error: any) {
+        console.error('[Service Worker] PDF to Markdown failed:', error);
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_START,
+          windowId
+        });
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_CHUNK,
+          content: `> 📄 当前页面是 PDF 文件：\`${tabUrl}\`\n\nPDF 转换为 Markdown 失败：${error.message || '未知错误'}`,
+          windowId
+        });
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_COMPLETE,
+          windowId
+        });
+      }
       return;
     }
 

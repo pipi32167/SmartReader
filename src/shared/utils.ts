@@ -36,3 +36,16 @@ export function formatDate(timestamp: number): string {
   if (!timestamp) return '-';
   return new Date(timestamp).toLocaleString('zh-CN');
 }
+
+/**
+ * Convert ArrayBuffer to Base64 string without stack overflow.
+ * Avoids spread operator on large arrays (> ~500k items).
+ */
+export function arrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}

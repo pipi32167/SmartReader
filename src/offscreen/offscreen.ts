@@ -1,14 +1,36 @@
 import initSqlJs from 'sql.js';
 import * as pdfjsLib from 'pdfjs-dist';
+// Tesseract.js is loaded dynamically to avoid bloating the initial chunk.
+// It is only needed when a PDF page has sparse text and requires OCR.
 import { MessageType } from '../shared/types';
 import { DB_FILENAME } from '../shared/constants';
+import { htmlToMarkdown } from '../shared/html-to-markdown';
+import { buildPdfHtml } from '../shared/pdf-to-html';
 
-// pdfjs-dist tries to spawn a Web Worker by default. Disable it and parse on the main thread.
-pdfjsLib.GlobalWorkerOptions.disableWorker = true;
+// pdfjs-dist v5: set worker source so page.render() can create a Web Worker.
+pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.mjs');
 
 let db: any = null;
 let SQL: any = null;
 let fileHandle: FileSystemFileHandle | null = null;
+
+function normalizeError(error: unknown): { message: string; name?: string; stack?: string } {
+  if (error instanceof Error) {
+    return { message: error.message || 'Unknown error', name: error.name, stack: error.stack };
+  }
+  if (typeof error === 'string') {
+    return { message: error || 'Unknown error' };
+  }
+  if (error === null || error === undefined) {
+    return { message: 'Unknown error (null/undefined thrown)' };
+  }
+  try {
+    const serialized = JSON.stringify(error);
+    return { message: serialized || 'Unknown error' };
+  } catch {
+    return { message: 'Unknown error (unserializable object)' };
+  }
+}
 
 async function initDatabase(): Promise<void> {
   try {
@@ -182,6 +204,7 @@ const OFFSCREEN_MESSAGE_TYPES = new Set([
   MessageType.DB_QUERY,
   MessageType.DB_EXEC,
   MessageType.EXTRACT_PDF_TEXT,
+  MessageType.CONVERT_PDF_TO_MARKDOWN,
 ]);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -241,16 +264,108 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               if (pageText) parts.push(pageText);
             }
             sendResponse({ success: true, text: parts.join('\n\n') });
-          } catch (error: any) {
-            console.error('[Offscreen] PDF text extraction failed:', error);
-            sendResponse({ success: false, error: error.message || 'PDF 文本提取失败' });
+          } catch (error: unknown) {
+            const errInfo = normalizeError(error);
+            console.error('[Offscreen] PDF text extraction failed:', `[${errInfo.name}]`, errInfo.message, errInfo.stack);
+            sendResponse({ success: false, error: `PDF 文本提取失败: ${errInfo.message}` });
+          }
+          break;
+        }
+
+        case MessageType.CONVERT_PDF_TO_MARKDOWN: {
+          const base64 = message.base64 as string;
+          try {
+            console.log('[Offscreen] Starting PDF to Markdown conversion...');
+            const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+            console.log('[Offscreen] PDF loaded, pages:', pdf.numPages);
+
+            let tesseractModule: typeof import('tesseract.js') | null = null;
+            let worker: Awaited<ReturnType<typeof import('tesseract.js').createWorker>> | null = null;
+            const pages: Array<{ pageNum: number; text: string }> = [];
+            const maxPages = Math.min(pdf.numPages, 50);
+            let ocrAttempted = false;
+            let ocrSucceeded = 0;
+
+            for (let i = 1; i <= maxPages; i++) {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              let pageText = textContent.items
+                .map((item: any) => item.str)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              // If page has very little text, treat as scanned and run OCR
+              if (pageText.length < 50) {
+                console.log(`[Offscreen] Page ${i} text sparse (${pageText.length} chars), attempting OCR...`);
+                ocrAttempted = true;
+                try {
+                  if (!tesseractModule) {
+                    tesseractModule = await import('tesseract.js');
+                  }
+                  if (!worker) {
+                    worker = await tesseractModule.createWorker('chi_sim+eng');
+                    console.log('[Offscreen] Tesseract worker created');
+                  }
+                  const viewport = page.getViewport({ scale: 1.5 });
+                  const canvas = document.createElement('canvas');
+                  canvas.width = viewport.width;
+                  canvas.height = viewport.height;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                    console.warn(`[Offscreen] Page ${i}: Failed to get 2D canvas context, skipping OCR`);
+                  } else {
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    const result = await worker.recognize(canvas);
+                    const ocrText = result.data.text.trim();
+                    if (ocrText.length > pageText.length) {
+                      pageText = ocrText;
+                    }
+                    ocrSucceeded++;
+                  }
+                } catch (ocrErr: unknown) {
+                  const errInfo = normalizeError(ocrErr);
+                  console.warn(`[Offscreen] Page ${i}: OCR failed, using sparse text. Error [${errInfo.name}]:`, errInfo.message);
+                }
+              }
+
+              if (pageText) {
+                pages.push({ pageNum: i, text: pageText });
+              }
+            }
+
+            if (worker) {
+              try {
+                await worker.terminate();
+                console.log('[Offscreen] Tesseract worker terminated');
+              } catch (termErr: unknown) {
+                const errInfo = normalizeError(termErr);
+                console.warn('[Offscreen] Tesseract worker terminate failed:', errInfo.message);
+              }
+            }
+            console.log('[Offscreen] Pages with content:', pages.length, '(OCR attempted:', ocrAttempted, ', succeeded:', ocrSucceeded, ')');
+
+            // Build HTML and convert to Markdown
+            const html = buildPdfHtml(pages);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const markdown = htmlToMarkdown(doc.body);
+            console.log('[Offscreen] Markdown generated, length:', markdown.length);
+
+            sendResponse({ success: true, markdown });
+          } catch (error: unknown) {
+            const errInfo = normalizeError(error);
+            console.error('[Offscreen] PDF to Markdown conversion failed:', `[${errInfo.name}]`, errInfo.message, errInfo.stack);
+            sendResponse({ success: false, error: `PDF 转换为 Markdown 失败: ${errInfo.message}` });
           }
           break;
         }
       }
-    } catch (error: any) {
-      console.error('[Offscreen] Error handling message:', error);
-      sendResponse({ success: false, error: error.message || 'Unknown error' });
+    } catch (error: unknown) {
+      const errInfo = normalizeError(error);
+      console.error('[Offscreen] Error handling message:', `[${errInfo.name}]`, errInfo.message, errInfo.stack);
+      sendResponse({ success: false, error: `Offscreen error: ${errInfo.message}` });
     }
   })();
   return true; // Keep channel open for async
