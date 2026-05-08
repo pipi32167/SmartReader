@@ -636,8 +636,7 @@ async function readStreamChunks(response: Response, windowId: number): Promise<s
 
 async function streamAIResponse(
   windowId: number,
-  promptPreview?: string,
-  pdfBase64?: { filename: string; data: string }
+  promptPreview?: string
 ): Promise<void> {
   const state = conversations.get(windowId);
   if (!state) {
@@ -673,27 +672,6 @@ async function streamAIResponse(
     // Build messages for API request
     const apiMessages = state.messages.map(m => ({ role: m.role, content: m.content }));
 
-    // If PDF and last message is user, replace with file content type
-    if (pdfBase64) {
-      const lastIdx = apiMessages.length - 1;
-      const lastMsg = apiMessages[lastIdx];
-      if (lastMsg.role === 'user') {
-        apiMessages[lastIdx] = {
-          role: 'user',
-          content: [
-            { type: 'text', text: lastMsg.content },
-            {
-              type: 'file',
-              file: {
-                filename: pdfBase64.filename,
-                file_data: `data:application/pdf;base64,${pdfBase64.data}`
-              }
-            }
-          ]
-        } as any;
-      }
-    }
-
     return fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -713,40 +691,6 @@ async function streamAIResponse(
     console.log('[Service Worker] Calling AI API at', state.apiConfig.base_url);
 
     let response = await doFetch();
-
-    // Fallback: if the API does not support 'file' content parts, extract text from the PDF and retry
-    if (!response.ok && pdfBase64) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      const isFileTypeError = errorText.toLowerCase().includes('invalid part type') ||
-                              errorText.toLowerCase().includes('file') ||
-                              errorText.toLowerCase().includes('unsupported content');
-
-      if (isFileTypeError) {
-        console.log('[Service Worker] API does not support file type, falling back to text extraction');
-        try {
-          const pdfBytes = Uint8Array.from(atob(pdfBase64.data), c => c.charCodeAt(0));
-          const extractedText = await extractPdfTextViaOffscreen(pdfBytes.buffer);
-
-          // Send a notice to the side panel about the fallback
-          await chrome.runtime.sendMessage({
-            type: MessageType.STREAM_CHUNK,
-            content: `> ⚠️ 当前 API 不支持 PDF 文件直接上传，已自动提取 PDF 文本内容作为替代。\n\n---\n\n`,
-            windowId
-          });
-
-          // Update the last user message in state with extracted text
-          const lastIdx = state.messages.length - 1;
-          if (state.messages[lastIdx].role === 'user') {
-            state.messages[lastIdx].content = state.prompt + '\n\n[PDF 文件：' + pdfBase64.filename + ']\n\n' + extractedText;
-          }
-
-          response = await doFetch();
-        } catch (extractError: any) {
-          console.error('[Service Worker] PDF fallback extraction failed:', extractError);
-          throw new Error('当前 API 不支持 PDF 文件解析，且无法提取 PDF 文本内容。请使用支持 file 类型的 API（如 OpenAI 官方 API），或尝试普通网页。');
-        }
-      }
-    }
 
     clearTimeout(timeout);
 
@@ -820,7 +764,7 @@ async function executePrompt(
     console.log('[Service Worker] Tab URL:', tabUrl, 'isPdf:', isPdf, 'pdfUrl:', pdfUrl);
 
     let finalPrompt: string;
-    let pdfBase64: { filename: string; data: string } | undefined;
+    let pdfFilename: string | undefined;
     let template: string;
     let pageContent: PageContent | undefined;
 
@@ -879,7 +823,7 @@ async function executePrompt(
       console.log('[Service Worker] Step 1: Detected PDF page, fetching...');
       try {
         const pdf = await fetchPdfAsBase64(pdfUrl);
-        pdfBase64 = { filename: pdf.filename, data: pdf.data };
+        pdfFilename = pdf.filename;
       } catch (error: any) {
         console.error('[Service Worker] Failed to fetch PDF:', error.message);
         await new Promise(r => setTimeout(r, 1000));
@@ -899,7 +843,7 @@ async function executePrompt(
       let pdfMarkdown = '';
       try {
         console.log('[Service Worker] Converting PDF to Markdown for prompt...');
-        const arrayBuffer = Uint8Array.from(atob(pdfBase64.data), c => c.charCodeAt(0)).buffer;
+        const arrayBuffer = Uint8Array.from(atob(pdf.data), c => c.charCodeAt(0)).buffer;
         pdfMarkdown = await convertPdfToMarkdownViaOffscreen(arrayBuffer);
         console.log('[Service Worker] PDF Markdown length:', pdfMarkdown.length);
       } catch (convertErr: any) {
@@ -1037,7 +981,7 @@ async function executePrompt(
     conversations.delete(windowId);
     const state: ConversationState = {
       historyId: null,
-      title: isPdf ? (pdfBase64?.filename || 'PDF 文件') : (pageContent?.title || '未命名页面'),
+      title: isPdf ? (pdfFilename || 'PDF 文件') : (pageContent?.title || '未命名页面'),
       url: tabUrl || '',
       prompt: finalPrompt,
       messages: [
@@ -1049,7 +993,7 @@ async function executePrompt(
     };
     conversations.set(windowId, state);
 
-    await streamAIResponse(windowId, preview, pdfBase64);
+    await streamAIResponse(windowId, preview);
   } catch (error: any) {
     console.error('[Service Worker] Execute prompt outer catch:', error);
     try {
