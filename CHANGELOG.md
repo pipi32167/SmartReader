@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.9 - 2026-05-08
+
+### Refactor
+- Simplify PDF handling by always converting to Markdown before sending to AI
+- Remove redundant OpenAI `file` content type upload logic
+- Remove fallback to raw text extraction when API rejects file type
+
 ## 1.0.8 - 2026-05-07
 
 ### Documentation
