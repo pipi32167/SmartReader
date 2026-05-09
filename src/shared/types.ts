@@ -41,6 +41,7 @@ export interface HistoryItem {
   messages?: string;
   created_at: number;
   updated_at?: number;
+  favorite?: number;
 }
 
 // Message types for communication between components
@@ -76,6 +77,7 @@ export const MessageType = {
   DELETE_HISTORY: 'DELETE_HISTORY',
   CLEAR_HISTORY: 'CLEAR_HISTORY',
   UPDATE_HISTORY: 'UPDATE_HISTORY',
+  TOGGLE_FAVORITE: 'TOGGLE_FAVORITE',
 
   // Side Panel → Service Worker
   ABORT_STREAM: 'ABORT_STREAM',

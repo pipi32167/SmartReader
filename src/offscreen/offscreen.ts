@@ -126,6 +126,7 @@ function initializeSchema(): void {
       prompt TEXT,
       response TEXT NOT NULL,
       messages TEXT,
+      favorite INTEGER DEFAULT 0,
       created_at INTEGER,
       updated_at INTEGER
     );
@@ -177,6 +178,10 @@ async function migrateHistoryTable(): Promise<void> {
     if (!columns.includes('updated_at')) {
       db.run('ALTER TABLE history ADD COLUMN updated_at INTEGER');
       console.log('[Offscreen] Added updated_at column to history');
+    }
+    if (!columns.includes('favorite')) {
+      db.run('ALTER TABLE history ADD COLUMN favorite INTEGER DEFAULT 0');
+      console.log('[Offscreen] Added favorite column to history');
     }
     await persistDatabase();
   } catch (error: any) {

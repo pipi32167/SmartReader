@@ -46,7 +46,10 @@
       <div id="historyListView" class="history-list-view hidden">
         <div class="history-toolbar">
           <button id="backToOutputBtn" class="back-btn">← 返回</button>
-          <button id="clearHistoryBtn" class="clear-btn">🗑 清空</button>
+          <div class="history-toolbar-right">
+            <button id="filterFavoritesBtn" class="filter-btn">⭐ 收藏</button>
+            <button id="clearHistoryBtn" class="clear-btn">🗑 清空</button>
+          </div>
         </div>
         <input type="text" id="historySearch" class="history-search" placeholder="搜索标题、URL、提示词...">
         <div id="historyList" class="history-list"></div>

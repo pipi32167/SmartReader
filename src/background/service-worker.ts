@@ -281,15 +281,22 @@ async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<s
   }
 }
 
-async function getHistoryList(limit: number = 100, keyword?: string): Promise<any[]> {
-  let sql = 'SELECT id, title, url, prompt, created_at, updated_at FROM history';
+async function getHistoryList(limit: number = 100, keyword?: string, favoritesOnly?: boolean): Promise<any[]> {
+  let sql = 'SELECT id, title, url, prompt, favorite, created_at, updated_at FROM history';
   const params: unknown[] = [];
+  const conditions: string[] = [];
   if (keyword && keyword.trim()) {
     const pattern = `%${keyword.trim()}%`;
-    sql += ' WHERE (title LIKE ? OR url LIKE ? OR prompt LIKE ?)';
+    conditions.push('(title LIKE ? OR url LIKE ? OR prompt LIKE ?)');
     params.push(pattern, pattern, pattern);
   }
-  sql += ' ORDER BY COALESCE(updated_at, created_at) DESC LIMIT ?';
+  if (favoritesOnly) {
+    conditions.push('favorite = 1');
+  }
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
+  }
+  sql += ' ORDER BY favorite DESC, COALESCE(updated_at, created_at) DESC LIMIT ?';
   params.push(limit);
   const result = await dbQuery(sql, params);
   if (!result || result.length === 0) return [];
@@ -331,6 +338,14 @@ async function updateHistory(id: number, messages: string, response: string): Pr
     'UPDATE history SET messages = ?, response = ?, updated_at = ? WHERE id = ?',
     [messages, response, now, id]
   );
+}
+
+async function toggleFavorite(id: number): Promise<number> {
+  const item = await getHistoryDetail(id);
+  if (!item) throw new Error('History not found');
+  const newValue = item.favorite ? 0 : 1;
+  await dbExec('UPDATE history SET favorite = ? WHERE id = ?', [newValue, id]);
+  return newValue;
 }
 
 async function retryHistoryMessage(historyId: number, messageIndex: number, windowId: number): Promise<void> {
@@ -1335,7 +1350,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         case MessageType.GET_HISTORY_LIST: {
           const limit = (message as any).limit || 100;
           const keyword = (message as any).keyword;
-          const items = await getHistoryList(limit, keyword);
+          const favoritesOnly = (message as any).favoritesOnly;
+          const items = await getHistoryList(limit, keyword, favoritesOnly);
           sendResponse({ success: true, data: items });
           break;
         }
@@ -1364,6 +1380,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           const { id, messages, response } = message as any;
           await updateHistory(id, messages, response);
           sendResponse({ success: true });
+          break;
+        }
+
+        case MessageType.TOGGLE_FAVORITE: {
+          const { id } = message as any;
+          const favorite = await toggleFavorite(id);
+          sendResponse({ success: true, favorite });
           break;
         }
 

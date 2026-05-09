@@ -14,6 +14,7 @@ let currentHistoryId: number | null = null;
 let currentOutputHistoryId: number | null = null;
 let currentHistorySupportsFollowUp = false;
 let currentHistoryMarkdown = '';
+let showFavoritesOnly = false;
 
 function init() {
   console.log('[SidePanel] init() called');
@@ -490,7 +491,7 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
   }
 }
 
-async function loadHistoryList(keyword?: string) {
+async function loadHistoryList(keyword?: string, favoritesOnly?: boolean) {
   const listEl = document.getElementById('historyList');
   const emptyEl = document.getElementById('historyEmpty');
   if (!listEl) return;
@@ -502,7 +503,8 @@ async function loadHistoryList(keyword?: string) {
     const response = await chrome.runtime.sendMessage({
       type: MessageType.GET_HISTORY_LIST,
       limit: 100,
-      keyword
+      keyword,
+      favoritesOnly
     });
     if (response?.success && response.data) {
       renderHistoryList(response.data);
@@ -528,8 +530,10 @@ function renderHistoryList(items: any[]) {
   if (emptyEl) emptyEl.classList.add('hidden');
 
   listEl.innerHTML = items.map(item => {
+    const isFav = item.favorite ? true : false;
     return `
     <div class="history-item" data-id="${item.id}">
+      <button class="history-item-favorite ${isFav ? 'is-favorite' : ''}" data-id="${item.id}" title="${isFav ? '取消收藏' : '收藏'}">${isFav ? '⭐' : '☆'}</button>
       <button class="history-item-delete" data-id="${item.id}" title="删除">🗑</button>
       <div class="history-item-title">${escapeHtml(item.title || '未命名')}</div>
       <div class="history-item-meta">
@@ -544,6 +548,14 @@ function renderHistoryList(items: any[]) {
     el.addEventListener('click', () => {
       const id = Number((el as HTMLElement).dataset.id);
       showHistoryDetail(id);
+    });
+  });
+
+  listEl.querySelectorAll('.history-item-favorite').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = Number((el as HTMLElement).dataset.id);
+      toggleFavoriteItem(id);
     });
   });
 
@@ -575,12 +587,16 @@ async function showHistoryDetail(id: number) {
       const promptDisplay = hasPrompt ? truncate(item.prompt, 200) : '';
       const promptFull = hasPrompt ? item.prompt : '';
       const showViewBtn = hasPrompt && item.prompt.length > 200;
+      const isFav = item.favorite ? true : false;
       metaEl.innerHTML = `
         <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
         ${item.url ? `<a class="history-meta-url" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>` : ''}
         ${promptDisplay ? `<div class="history-meta-prompt">${escapeHtml(promptDisplay)}</div>` : ''}
         ${showViewBtn ? `<button class="view-prompt-btn" id="viewPromptBtn">🔍 查看完整提示词</button>` : ''}
-        <div class="history-meta-time">${formatDate(item.created_at)}</div>
+        <div class="history-meta-footer" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <div class="history-meta-time">${formatDate(item.created_at)}</div>
+          <button class="history-detail-favorite ${isFav ? 'is-favorite' : ''}" id="detailFavoriteBtn" title="${isFav ? '取消收藏' : '收藏'}">${isFav ? '⭐ 已收藏' : '☆ 收藏'}</button>
+        </div>
       `;
 
       if (showViewBtn) {
@@ -588,6 +604,13 @@ async function showHistoryDetail(id: number) {
         if (viewBtn) {
           viewBtn.addEventListener('click', () => openPromptModal(promptFull));
         }
+      }
+
+      const detailFavBtn = document.getElementById('detailFavoriteBtn');
+      if (detailFavBtn) {
+        detailFavBtn.addEventListener('click', () => {
+          toggleFavoriteItem(id);
+        });
       }
 
       if (item.messages) {
@@ -669,9 +692,24 @@ async function deleteHistoryItem(id: number) {
   try {
     await chrome.runtime.sendMessage({ type: MessageType.DELETE_HISTORY, id });
     showView('history-list');
-    await loadHistoryList();
+    await loadHistoryList(undefined, showFavoritesOnly || undefined);
   } catch (error) {
     console.error('[SidePanel] Failed to delete history:', error);
+  }
+}
+
+async function toggleFavoriteItem(id: number) {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: MessageType.TOGGLE_FAVORITE, id });
+    if (response?.success) {
+      if (currentView === 'history-detail' && currentHistoryId === id) {
+        await showHistoryDetail(id);
+      }
+      const searchInput = document.getElementById('historySearch') as HTMLInputElement | null;
+      await loadHistoryList(searchInput?.value.trim() || undefined, showFavoritesOnly || undefined);
+    }
+  } catch (error) {
+    console.error('[SidePanel] Failed to toggle favorite:', error);
   }
 }
 
@@ -780,10 +818,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const historySearch = document.getElementById('historySearch') as HTMLInputElement | null;
   if (historySearch) {
     const debouncedSearch = debounce((value: string) => {
-      loadHistoryList(value.trim() || undefined);
+      loadHistoryList(value.trim() || undefined, showFavoritesOnly || undefined);
     }, 300);
     historySearch.addEventListener('input', () => {
       debouncedSearch(historySearch.value);
+    });
+  }
+
+  const filterFavoritesBtn = document.getElementById('filterFavoritesBtn');
+  if (filterFavoritesBtn) {
+    filterFavoritesBtn.addEventListener('click', () => {
+      showFavoritesOnly = !showFavoritesOnly;
+      filterFavoritesBtn.classList.toggle('active', showFavoritesOnly);
+      const searchInput = document.getElementById('historySearch') as HTMLInputElement | null;
+      loadHistoryList(searchInput?.value.trim() || undefined, showFavoritesOnly || undefined);
     });
   }
 
