@@ -94,6 +94,49 @@ Vite 配置（`vite.config.ts`）定义了多个 Rollup 入口：
 
 ---
 
+## Release Workflow
+
+### 版本号同步
+
+发布前必须同步以下两个文件的版本号：
+
+- `package.json` — `version` 字段
+- `public/manifest.json` — `version` 字段（Chrome 扩展商店读取的版本）
+
+### 发布步骤
+
+```bash
+# 1. 确保所有代码改动已提交并 push
+git status
+
+# 2. 更新版本号（package.json + public/manifest.json）
+# 手动修改后执行：
+npm run build
+
+# 3. 打包为 ZIP（Chrome Web Store 上传格式）
+cd dist && zip -r ../SmartReader-v{X.Y.Z}.zip . -x "*.map"
+
+# 4. 提交版本号更新
+git add package.json public/manifest.json
+git commit -m "chore: bump version to v{X.Y.Z}"
+git push origin main
+
+# 5. 创建 GitHub Release（需要 gh CLI）
+gh release create v{X.Y.Z} \
+  --title "SmartReader v{X.Y.Z}" \
+  --notes-file CHANGELOG.md \
+  SmartReader-v{X.Y.Z}.zip
+```
+
+### 注意事项
+
+- 不要遗漏 `public/manifest.json` 的版本更新，否则商店审核会失败
+- ZIP 包从 `dist/` 目录打包，排除 `.map` 文件以减小体积
+- 首次发布前需参考 `PUBLISH.md` 完成 Chrome Web Store 开发者账号注册、隐私政策托管等准备工作
+- 后续更新只需重新上传 ZIP 到 Chrome Web Store Developer Dashboard 并提交审核
+
+---
+
 ## Architecture Overview
 
 ### 为什么使用 Offscreen Document？
