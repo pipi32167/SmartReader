@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.10 - 2026-05-08
+
+### Features
+- Add favorite/bookmark support for history records
+- Toggle favorite from history list and detail views
+- Filter history list to show favorites only
+- Favorite records sorted to the top by default
+
+### Fixes
+- Fix GET_HISTORY_LIST handler to pass favoritesOnly parameter to service worker
+
 ## 1.0.9 - 2026-05-08
 
 ### Refactor
