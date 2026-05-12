@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SmartReader",
   "short_name": "SmartReader",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Summarize and ask questions about web pages using AI",
   "homepage_url": "https://github.com/pipi32167/SmartReader",
   "permissions": [
