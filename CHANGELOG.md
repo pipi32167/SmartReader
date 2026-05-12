@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 - 2026-05-12
+
+### Features
+- Auto-open options page when API key is not configured before executing prompts
+
 ## 1.0.10 - 2026-05-08
 
 ### Features
