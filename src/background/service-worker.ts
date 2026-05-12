@@ -186,6 +186,26 @@ async function getApiConfig(): Promise<ApiConfig> {
   return config as ApiConfig;
 }
 
+async function requireApiConfig(windowId?: number): Promise<ApiConfig | null> {
+  const apiConfig = await getApiConfig();
+  if (!apiConfig.api_key) {
+    chrome.runtime.openOptionsPage();
+    if (windowId !== undefined) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: MessageType.STREAM_ERROR,
+          error: 'API Key 未配置。已为您打开配置页面，请填写 API 设置后重试。',
+          windowId
+        });
+      } catch (sendErr: any) {
+        console.error('[Service Worker] Failed to send STREAM_ERROR:', sendErr.message);
+      }
+    }
+    return null;
+  }
+  return apiConfig;
+}
+
 // ============================================================================
 // Prompts
 // ============================================================================
@@ -409,15 +429,8 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     return;
   }
 
-  const apiConfig = await getApiConfig();
-  if (!apiConfig.api_key) {
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_ERROR,
-      error: 'API Key 未配置。请打开选项页面配置 API 设置。',
-      windowId
-    });
-    return;
-  }
+  const apiConfig = await requireApiConfig(windowId);
+  if (!apiConfig) return;
 
   const state: ConversationState = {
     historyId: item.id,
@@ -790,22 +803,9 @@ async function executePrompt(
 
       // 2. Get API config
       console.log('[Service Worker] Step 2: Getting API config');
-      const apiConfig = await getApiConfig();
+      const apiConfig = await requireApiConfig(windowId);
+      if (!apiConfig) return;
       console.log('[Service Worker] API config base_url:', apiConfig.base_url, 'model:', apiConfig.model, 'hasKey:', !!apiConfig.api_key);
-      if (!apiConfig.api_key) {
-        console.error('[Service Worker] API Key not configured');
-        await new Promise(r => setTimeout(r, 1000));
-        try {
-          await chrome.runtime.sendMessage({
-            type: MessageType.STREAM_ERROR,
-            error: 'API Key 未配置。请打开选项页面配置 API 设置。',
-            windowId
-          });
-        } catch (sendErr: any) {
-          console.error('[Service Worker] Failed to send STREAM_ERROR:', sendErr.message);
-        }
-        return;
-      }
 
       // 3. Wait for side panel to fully load before sending stream messages
       console.log('[Service Worker] Step 3: Waiting for side panel to load...');
@@ -968,22 +968,9 @@ async function executePrompt(
 
     // 2. Get API config
     console.log('[Service Worker] Step 2: Getting API config');
-    const apiConfig = await getApiConfig();
+    const apiConfig = await requireApiConfig(windowId);
+    if (!apiConfig) return;
     console.log('[Service Worker] API config base_url:', apiConfig.base_url, 'model:', apiConfig.model, 'hasKey:', !!apiConfig.api_key);
-    if (!apiConfig.api_key) {
-      console.error('[Service Worker] API Key not configured');
-      await new Promise(r => setTimeout(r, 1000));
-      try {
-        await chrome.runtime.sendMessage({
-          type: MessageType.STREAM_ERROR,
-          error: 'API Key 未配置。请打开选项页面配置 API 设置。',
-          windowId
-        });
-      } catch (sendErr: any) {
-        console.error('[Service Worker] Failed to send STREAM_ERROR:', sendErr.message);
-      }
-      return;
-    }
 
     // 3. Wait for side panel to fully load before sending stream messages
     console.log('[Service Worker] Step 3: Waiting for side panel to load...');
@@ -1298,7 +1285,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
             }
             try {
               const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
-              const apiConfig = await getApiConfig();
+              const apiConfig = await requireApiConfig(windowId);
+              if (!apiConfig) {
+                sendResponse({ success: false, error: 'API Key 未配置' });
+                return;
+              }
               state = {
                 historyId: item.id,
                 title: item.title,
@@ -1318,6 +1309,16 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           if (!state) {
             sendResponse({ success: false, error: '当前没有活跃的对话' });
             return;
+          }
+
+          // Validate API config for active conversation
+          if (!state.apiConfig.api_key) {
+            const apiConfig = await requireApiConfig(windowId);
+            if (!apiConfig) {
+              sendResponse({ success: false, error: 'API Key 未配置' });
+              return;
+            }
+            state.apiConfig = apiConfig;
           }
 
           sendResponse({ success: true });
