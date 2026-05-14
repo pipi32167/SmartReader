@@ -110,6 +110,17 @@ async function handlePromptClick(promptId: number) {
       return;
     }
 
+    // Check API config before opening side panel
+    const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
+    if (!apiConfig?.data?.api_key) {
+      showError('API Key 未配置，请先在设置中配置 API');
+      setTimeout(() => {
+        chrome.runtime.openOptionsPage();
+        window.close();
+      }, 1200);
+      return;
+    }
+
     // Open side panel first (requires user gesture context)
     await chrome.sidePanel.open({ windowId: tab.windowId });
 
@@ -181,6 +192,17 @@ async function handleCustomSend() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.windowId) {
       showError('无法获取当前标签页');
+      return;
+    }
+
+    // Check API config before opening side panel
+    const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
+    if (!apiConfig?.data?.api_key) {
+      showError('API Key 未配置，请先在设置中配置 API');
+      setTimeout(() => {
+        chrome.runtime.openOptionsPage();
+        window.close();
+      }, 1200);
       return;
     }
 
