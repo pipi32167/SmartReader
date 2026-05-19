@@ -34,83 +34,99 @@ function fixHtmlPaths(dir: string) {
   }
 }
 
-export default defineConfig({
-  root: '.',
-  publicDir: 'public',
-  base: './',
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
-        'content-script': resolve(__dirname, 'src/content/content-script.ts'),
-        'offscreen': resolve(__dirname, 'src/offscreen/offscreen.html'),
-        'popup': resolve(__dirname, 'src/popup/popup.html'),
-        'sidepanel': resolve(__dirname, 'src/sidepanel/sidepanel.html'),
-        'options': resolve(__dirname, 'src/options/options.html'),
-      },
-      output: {
-        entryFileNames: (chunkInfo) => {
-          if (chunkInfo.name === 'service-worker' || chunkInfo.name === 'content-script') {
-            return '[name].js';
-          }
-          return 'assets/[name].js';
+export default defineConfig(({ mode }) => {
+  return {
+    root: '.',
+    publicDir: 'public',
+    base: './',
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
+          'content-script': resolve(__dirname, 'src/content/content-script.ts'),
+          'offscreen': resolve(__dirname, 'src/offscreen/offscreen.html'),
+          'popup': resolve(__dirname, 'src/popup/popup.html'),
+          'sidepanel': resolve(__dirname, 'src/sidepanel/sidepanel.html'),
+          'options': resolve(__dirname, 'src/options/options.html'),
         },
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
-          const info = assetInfo.name || '';
-          if (info.endsWith('.css')) {
-            return 'assets/[name]-[hash][extname]';
-          }
-          return '[name][extname]';
-        },
-        manualChunks: (id) => {
-          if (id.includes('node_modules/tesseract.js')) {
-            return 'tesseract';
-          }
-          if (id.includes('node_modules/pdfjs-dist')) {
-            return 'pdfjs';
-          }
+        output: {
+          entryFileNames: (chunkInfo) => {
+            if (chunkInfo.name === 'service-worker' || chunkInfo.name === 'content-script') {
+              return '[name].js';
+            }
+            return 'assets/[name].js';
+          },
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: (assetInfo) => {
+            const info = assetInfo.name || '';
+            if (info.endsWith('.css')) {
+              return 'assets/[name]-[hash][extname]';
+            }
+            return '[name][extname]';
+          },
+          manualChunks: (id) => {
+            if (id.includes('node_modules/tesseract.js')) {
+              return 'tesseract';
+            }
+            if (id.includes('node_modules/pdfjs-dist')) {
+              return 'pdfjs';
+            }
+          },
         },
       },
     },
-  },
-  plugins: [
-    {
-      name: 'post-build-cleanup',
-      writeBundle() {
-        try {
-          // Copy sql-wasm.wasm
-          mkdirSync('dist', { recursive: true });
-          copyFileSync(
-            resolve(__dirname, 'node_modules/sql.js/dist/sql-wasm.wasm'),
-            resolve(__dirname, 'dist/sql-wasm.wasm')
-          );
-
-          // Copy pdf.worker.mjs for pdfjs-dist v5 Web Worker
-          copyFileSync(
-            resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
-            resolve(__dirname, 'dist/pdf.worker.mjs')
-          );
-
-          const distDir = resolve(__dirname, 'dist');
-
-          // Move HTML files from dist/src/* to dist/*
-          const srcDir = resolve(distDir, 'src');
+    plugins: [
+      {
+        name: 'post-build-cleanup',
+        writeBundle() {
           try {
-            moveFilesToRoot(srcDir, distDir);
-            rmdirSync(srcDir);
-          } catch {
-            // src dir might not exist
-          }
+            // Copy sql-wasm.wasm
+            mkdirSync('dist', { recursive: true });
+            copyFileSync(
+              resolve(__dirname, 'node_modules/sql.js/dist/sql-wasm.wasm'),
+              resolve(__dirname, 'dist/sql-wasm.wasm')
+            );
 
-          // Fix paths in HTML files
-          fixHtmlPaths(distDir);
-        } catch (e) {
-          console.warn('Post-build cleanup error:', e);
+            // Copy pdf.worker.mjs for pdfjs-dist v5 Web Worker
+            copyFileSync(
+              resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+              resolve(__dirname, 'dist/pdf.worker.mjs')
+            );
+
+            const distDir = resolve(__dirname, 'dist');
+
+            // Move HTML files from dist/src/* to dist/*
+            const srcDir = resolve(distDir, 'src');
+            try {
+              moveFilesToRoot(srcDir, distDir);
+              rmdirSync(srcDir);
+            } catch {
+              // src dir might not exist
+            }
+
+            // Fix paths in HTML files
+            fixHtmlPaths(distDir);
+
+            // Swap to red icons for development builds
+            if (mode === 'development') {
+              const devIconsDir = resolve(__dirname, 'icons-dev');
+              const distIconsDir = resolve(distDir, 'icons');
+              mkdirSync(distIconsDir, { recursive: true });
+              for (const size of ['icon16.png', 'icon48.png', 'icon128.png']) {
+                copyFileSync(
+                  resolve(devIconsDir, size),
+                  resolve(distIconsDir, size)
+                );
+              }
+              console.log('[post-build-cleanup] Replaced icons with red dev variants');
+            }
+          } catch (e) {
+            console.warn('Post-build cleanup error:', e);
+          }
         }
       }
-    }
-  ]
+    ]
+  };
 });
