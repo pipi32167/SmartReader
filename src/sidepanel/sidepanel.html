@@ -1,22 +1,26 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartReader - AI Response</title>
+  <title data-i18n="sidepanel.title">SmartReader - AI Response</title>
   <link rel="stylesheet" href="./sidepanel.css">
 </head>
 <body>
   <div class="container">
     <header class="header">
       <div class="header-content">
-        <span class="logo">🤖 SmartReader</span>
+        <span class="logo" data-i18n="sidepanel.logo">🤖 SmartReader</span>
         <div class="header-right">
-          <button id="historyBtn" class="history-btn" title="历史记录">📜 历史</button>
-          <button id="abortBtn" class="abort-btn hidden" title="中断生成">⏹ 中断</button>
+          <button id="historyBtn" class="history-btn" data-i18n-title="sidepanel.btn.historyTitle" title="历史记录">
+            <span data-i18n="sidepanel.btn.history">📜 历史</span>
+          </button>
+          <button id="abortBtn" class="abort-btn hidden" data-i18n-title="sidepanel.btn.abortTitle" title="中断生成">
+            <span data-i18n="sidepanel.btn.abort">⏹ 中断</span>
+          </button>
           <div class="status" id="status">
             <span class="status-dot" id="statusDot"></span>
-            <span class="status-text" id="statusText">就绪</span>
+            <span class="status-text" id="statusText" data-i18n="sidepanel.status.ready">就绪</span>
           </div>
         </div>
       </div>
@@ -29,13 +33,13 @@
         <div id="conversationLog" class="conversation-log"></div>
         <div id="currentResponse" class="current-response">
           <div class="welcome">
-            <h2>欢迎使用 SmartReader</h2>
-            <p>点击扩展图标，选择一个提示词来开始。</p>
+            <h2 data-i18n="sidepanel.welcome.title">欢迎使用 SmartReader</h2>
+            <p data-i18n="sidepanel.welcome.subtitle">点击扩展图标，选择一个提示词来开始。</p>
             <div class="tips">
-              <h3>💡 提示词变量</h3>
+              <h3 data-i18n="sidepanel.tips.title">💡 提示词变量</h3>
               <ul>
-                <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
-                <li><code>${text}</code> - 选中的文字</li>
+                <li><code>${html}</code> - <span data-i18n="sidepanel.tips.htmlVar">当前网页内容（自动转为 Markdown）</span></li>
+                <li><code>${text}</code> - <span data-i18n="sidepanel.tips.textVar">选中的文字</span></li>
               </ul>
             </div>
           </div>
@@ -45,33 +49,31 @@
       <!-- History list view -->
       <div id="historyListView" class="history-list-view hidden">
         <div class="history-toolbar">
-          <button id="backToOutputBtn" class="back-btn">← 返回</button>
+          <button id="backToOutputBtn" class="back-btn" data-i18n="sidepanel.btn.back">← 返回</button>
           <div class="history-toolbar-right">
-            <button id="filterFavoritesBtn" class="filter-btn">⭐ 收藏</button>
-            <button id="clearHistoryBtn" class="clear-btn">🗑 清空</button>
+            <button id="filterFavoritesBtn" class="filter-btn" data-i18n="sidepanel.btn.favorites">⭐ 收藏</button>
+            <button id="clearHistoryBtn" class="clear-btn" data-i18n="sidepanel.btn.clear">🗑 清空</button>
           </div>
         </div>
-        <input type="text" id="historySearch" class="history-search" placeholder="搜索标题、URL、提示词...">
+        <input type="text" id="historySearch" class="history-search" data-i18n-placeholder="sidepanel.history.searchPlaceholder" placeholder="搜索标题、URL、提示词...">
         <div id="historyList" class="history-list"></div>
-        <div id="historyEmpty" class="history-empty hidden">暂无历史记录</div>
+        <div id="historyEmpty" class="history-empty hidden" data-i18n="sidepanel.history.empty">暂无历史记录</div>
       </div>
 
       <!-- History detail view -->
       <div id="historyDetailView" class="history-detail-view hidden">
         <div class="history-toolbar">
-          <button id="backToListBtn" class="back-btn">← 返回列表</button>
-          <button id="deleteHistoryBtn" class="delete-btn">🗑 删除</button>
+          <button id="backToListBtn" class="back-btn" data-i18n="sidepanel.btn.backToList">← 返回列表</button>
+          <button id="deleteHistoryBtn" class="delete-btn" data-i18n="sidepanel.btn.delete">🗑 删除</button>
         </div>
         <div class="history-meta" id="historyMeta"></div>
         <div id="historyDetailContent" class="markdown-content"></div>
       </div>
     </main>
 
-    <!-- loading removed -->
-
     <div id="followUpArea" class="follow-up-area hidden">
-      <textarea id="followUpInput" placeholder="继续提问..." rows="1"></textarea>
-      <button id="followUpSendBtn">发送</button>
+      <textarea id="followUpInput" data-i18n-placeholder="sidepanel.placeholder.followUp" placeholder="继续提问..." rows="1"></textarea>
+      <button id="followUpSendBtn" data-i18n="sidepanel.btn.send">发送</button>
     </div>
   </div>
 
@@ -79,8 +81,8 @@
   <div id="promptModal" class="modal-overlay hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>💡 提示词</h3>
-        <button class="modal-close" id="modalCloseBtn" title="关闭">✕</button>
+        <h3 data-i18n="sidepanel.modal.promptTitle">💡 提示词</h3>
+        <button class="modal-close" id="modalCloseBtn" data-i18n-title="sidepanel.btn.close" title="关闭">✕</button>
       </div>
       <div class="modal-body">
         <pre id="modalPromptText"></pre>

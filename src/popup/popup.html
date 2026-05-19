@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartReader</title>
+  <title data-i18n="popup.title">SmartReader</title>
   <link rel="stylesheet" href="./popup.css">
 </head>
 <body>
@@ -11,9 +11,9 @@
     <header class="header">
       <h1 class="title">SmartReader</h1>
       <div class="header-actions">
-        <button id="historyBtn" class="icon-btn" title="历史记录">📜</button>
-        <button id="markdownBtn" class="icon-btn" title="查看网页 Markdown">👁</button>
-        <button id="optionsBtn" class="icon-btn" title="设置">⚙️</button>
+        <button id="historyBtn" class="icon-btn" data-i18n-title="popup.btn.historyTitle" title="历史记录">📜</button>
+        <button id="markdownBtn" class="icon-btn" data-i18n-title="popup.btn.markdownTitle" title="查看网页 Markdown">👁</button>
+        <button id="optionsBtn" class="icon-btn" data-i18n-title="popup.btn.optionsTitle" title="设置">⚙️</button>
       </div>
     </header>
 
@@ -23,29 +23,30 @@
         id="customPrompt"
         class="custom-prompt-input"
         rows="2"
+        data-i18n-placeholder="popup.placeholder.customPrompt"
         placeholder="输入自定义指令，例如：总结这篇文章"
       ></textarea>
       <div class="content-context-bar">
-        <span id="contextStatus" class="context-status">📄 网页全文</span>
+        <span id="contextStatus" class="context-status" data-i18n="popup.status.fullPage">📄 网页全文</span>
         <label class="context-checkbox-label">
           <input type="checkbox" id="includeContent" checked>
-          <span>附带页面内容</span>
+          <span data-i18n="popup.checkbox.includeContent">附带页面内容</span>
         </label>
       </div>
-      <button id="customSendBtn" class="btn btn-primary btn-full">🚀 发送</button>
+      <button id="customSendBtn" class="btn btn-primary btn-full" data-i18n="popup.btn.send">🚀 发送</button>
     </div>
 
     <!-- Saved Prompts Section -->
     <div id="saved-prompts-section">
       <div class="section-divider">
         <span class="divider-line"></span>
-        <span class="divider-text">快捷提示词</span>
+        <span class="divider-text" data-i18n="popup.section.quickPrompts">快捷提示词</span>
         <span class="divider-line"></span>
       </div>
 
       <div id="loading" class="loading hidden">
         <div class="spinner"></div>
-        <span>加载中...</span>
+        <span data-i18n="popup.loading">加载中...</span>
       </div>
 
       <div id="error" class="error hidden"></div>
@@ -55,8 +56,8 @@
       </div>
 
       <div id="empty-state" class="empty-state hidden">
-        <p>暂无提示词</p>
-        <button id="addPromptBtn" class="btn btn-primary">去添加</button>
+        <p data-i18n="popup.empty.noPrompts">暂无提示词</p>
+        <button id="addPromptBtn" class="btn btn-primary" data-i18n="popup.empty.addPrompt">去添加</button>
       </div>
     </div>
   </div>

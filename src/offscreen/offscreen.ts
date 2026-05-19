@@ -3,9 +3,10 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Tesseract.js is loaded dynamically to avoid bloating the initial chunk.
 // It is only needed when a PDF page has sparse text and requires OCR.
 import { MessageType } from '../shared/types';
-import { DB_FILENAME } from '../shared/constants';
+import { DB_FILENAME, getDefaultPrompts } from '../shared/constants';
 import { htmlToMarkdown } from '../shared/html-to-markdown';
 import { buildPdfHtml } from '../shared/pdf-to-html';
+import { detectBrowserLocale } from '../shared/i18n';
 
 // pdfjs-dist v5: set worker source so page.render() can create a Web Worker.
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.mjs');
@@ -153,14 +154,14 @@ async function ensureDefaults(): Promise<void> {
   const promptCount = promptResult[0]?.values[0][0] || 0;
 
   if (promptCount === 0) {
-    db.run(
-      'INSERT INTO prompts (title, prompt, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-      ['总结页面', '请总结以下网页内容：\n\n${html}', 0, Date.now(), Date.now()]
-    );
-    db.run(
-      'INSERT INTO prompts (title, prompt, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-      ['解释选中内容', '请解释以下内容：\n\n${text}', 1, Date.now(), Date.now()]
-    );
+    const locale = detectBrowserLocale(navigator.language);
+    const defaults = getDefaultPrompts(locale);
+    for (const p of defaults) {
+      db.run(
+        'INSERT INTO prompts (title, prompt, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [p.title, p.prompt, p.sort_order, Date.now(), Date.now()]
+      );
+    }
     await persistDatabase();
   }
 }
@@ -272,7 +273,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } catch (error: unknown) {
             const errInfo = normalizeError(error);
             console.error('[Offscreen] PDF text extraction failed:', `[${errInfo.name}]`, errInfo.message, errInfo.stack);
-            sendResponse({ success: false, error: `PDF 文本提取失败: ${errInfo.message}` });
+            sendResponse({ success: false, error: `PDF text extraction failed: ${errInfo.message}` });
           }
           break;
         }
@@ -362,7 +363,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } catch (error: unknown) {
             const errInfo = normalizeError(error);
             console.error('[Offscreen] PDF to Markdown conversion failed:', `[${errInfo.name}]`, errInfo.message, errInfo.stack);
-            sendResponse({ success: false, error: `PDF 转换为 Markdown 失败: ${errInfo.message}` });
+            sendResponse({ success: false, error: `PDF to Markdown conversion failed: ${errInfo.message}` });
           }
           break;
         }

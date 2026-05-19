@@ -19,6 +19,19 @@ export const DEFAULT_PROMPTS = [
   },
 ];
 
+export function getDefaultPrompts(locale: string) {
+  if (locale === 'zh-CN') {
+    return [
+      { title: '总结页面', prompt: '请总结以下网页内容：\n\n${html}', sort_order: 0 },
+      { title: '解释选中内容', prompt: '请解释以下内容：\n\n${text}', sort_order: 1 },
+    ];
+  }
+  return [
+    { title: 'Summarize page', prompt: 'Please summarize the following web page content:\n\n${html}', sort_order: 0 },
+    { title: 'Explain selection', prompt: 'Please explain the following content:\n\n${text}', sort_order: 1 },
+  ];
+}
+
 // OPFS file name for SQLite database
 export const DB_FILENAME = 'smartreader.db';
 

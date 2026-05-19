@@ -1,5 +1,6 @@
 import { MessageType } from '../shared/types';
 import type { ApiConfig, Prompt } from '../shared/types';
+import { t, initPage, getCurrentLocale, setLocale } from '../shared/i18n';
 
 let currentTab = 'api';
 let prompts: Prompt[] = [];
@@ -33,13 +34,15 @@ const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
 // Initialization
 // ============================================================================
 
-function init() {
+async function init() {
+  await initPage();
   setupTabs();
   setupApiForm();
   setupPromptModal();
   setupApiKeyToggle();
   setupTestApiButton();
   setupProviderSelect();
+  setupLanguageSelect();
 
   loadApiConfig();
   loadPrompts();
@@ -111,12 +114,12 @@ function setupApiForm() {
       });
 
       if (response.success) {
-        showSaveStatus('apiSaveStatus', '保存成功！');
+        showSaveStatus('apiSaveStatus', t('options.status.saved'));
       } else {
-        showSaveStatus('apiSaveStatus', '保存失败: ' + response.error, true);
+        showSaveStatus('apiSaveStatus', t('options.status.saveFailed', { message: response.error }), true);
       }
     } catch (error: any) {
-      showSaveStatus('apiSaveStatus', '保存失败: ' + error.message, true);
+      showSaveStatus('apiSaveStatus', t('options.status.saveFailed', { message: error.message }), true);
     }
   });
 }
@@ -129,7 +132,7 @@ function setupApiKeyToggle() {
   toggleBtn.addEventListener('click', () => {
     const isPassword = apiKeyInput.type === 'password';
     apiKeyInput.type = isPassword ? 'text' : 'password';
-    toggleBtn.textContent = isPassword ? '隐藏' : '显示';
+    toggleBtn.textContent = isPassword ? t('options.btn.hide') : t('options.btn.show');
   });
 }
 
@@ -162,11 +165,11 @@ function setupTestApiButton() {
     const model = (document.getElementById('model') as HTMLInputElement).value.trim();
 
     if (!baseUrl || !apiKey || !model) {
-      showTestStatus('请填写完整的 API 配置信息', 'error');
+      showTestStatus(t('options.error.incompleteConfig'), 'error');
       return;
     }
 
-    showTestStatus('正在测试连接...', 'testing');
+    showTestStatus(t('options.status.testing'), 'testing');
     btn.setAttribute('disabled', 'true');
 
     try {
@@ -178,12 +181,12 @@ function setupTestApiButton() {
       });
 
       if (response.success) {
-        showTestStatus('连接成功！API 配置可用', 'success');
+        showTestStatus(t('options.status.testSuccess'), 'success');
       } else {
-        showTestStatus('连接失败：' + (response.error || '未知错误'), 'error');
+        showTestStatus(t('options.status.testError', { message: response.error || t('sidepanel.error.unknown') }), 'error');
       }
     } catch (error: any) {
-      showTestStatus('测试失败：' + (error.message || '无法连接到后台服务'), 'error');
+      showTestStatus(t('options.status.testFailed', { message: error.message || t('options.error.network') }), 'error');
     } finally {
       btn.removeAttribute('disabled');
     }
@@ -215,6 +218,23 @@ function setupProviderSelect() {
   });
 }
 
+function setupLanguageSelect() {
+  const select = document.getElementById('languageSelect') as HTMLSelectElement;
+  if (!select) return;
+
+  // Set current value
+  getCurrentLocale().then(locale => {
+    select.value = locale;
+  }).catch(() => {});
+
+  select.addEventListener('change', async () => {
+    const locale = select.value;
+    await setLocale(locale);
+    // Reload page to apply new language
+    window.location.reload();
+  });
+}
+
 // ============================================================================
 // Prompts
 // ============================================================================
@@ -240,7 +260,7 @@ function renderPrompts() {
   if (prompts.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>暂无提示词，点击右上角按钮添加</p>
+        <p>${t('options.empty.noPrompts')}</p>
       </div>
     `;
     return;
@@ -249,11 +269,11 @@ function renderPrompts() {
   container.innerHTML = prompts.map(p => `
     <div class="prompt-card" data-id="${p.id}" draggable="true">
       <div class="prompt-card-header">
-        <span class="drag-handle" title="拖拽排序">⋮⋮</span>
+        <span class="drag-handle" title="${t('options.btn.dragSort')}">⋮⋮</span>
         <span class="prompt-card-title">${escapeHtml(p.title)}</span>
         <div class="prompt-card-actions">
-          <button class="btn btn-edit" data-id="${p.id}">编辑</button>
-          <button class="btn btn-danger btn-delete" data-id="${p.id}">删除</button>
+          <button class="btn btn-edit" data-id="${p.id}">${t('options.btn.edit')}</button>
+          <button class="btn btn-danger btn-delete" data-id="${p.id}">${t('options.btn.delete')}</button>
         </div>
       </div>
       <div class="prompt-card-content">${escapeHtml(p.prompt)}</div>
@@ -411,14 +431,14 @@ function closeModal() {
   (document.getElementById('promptTitle') as HTMLInputElement).value = '';
   (document.getElementById('promptContent') as HTMLTextAreaElement).value = '';
   (document.getElementById('promptSort') as HTMLInputElement).value = '0';
-  (document.getElementById('modalTitle') as HTMLElement).textContent = '添加提示词';
+  (document.getElementById('modalTitle') as HTMLElement).textContent = t('options.modal.addPrompt');
 }
 
 function openAddPrompt() {
   editingPromptId = null;
   const maxSort = prompts.length > 0 ? Math.max(...prompts.map(p => p.sort_order)) : -1;
   (document.getElementById('promptSort') as HTMLInputElement).value = String(maxSort + 1);
-  (document.getElementById('modalTitle') as HTMLElement).textContent = '添加提示词';
+  (document.getElementById('modalTitle') as HTMLElement).textContent = t('options.modal.addPrompt');
   openModal();
 }
 
@@ -431,7 +451,7 @@ function openEditPrompt(id: number) {
   (document.getElementById('promptTitle') as HTMLInputElement).value = prompt.title;
   (document.getElementById('promptContent') as HTMLTextAreaElement).value = prompt.prompt;
   (document.getElementById('promptSort') as HTMLInputElement).value = String(prompt.sort_order);
-  (document.getElementById('modalTitle') as HTMLElement).textContent = '编辑提示词';
+  (document.getElementById('modalTitle') as HTMLElement).textContent = t('options.modal.editPrompt');
 
   openModal();
 }
@@ -442,7 +462,7 @@ async function savePrompt() {
   const sortOrder = parseInt((document.getElementById('promptSort') as HTMLInputElement).value) || 0;
 
   if (!title || !prompt) {
-    alert('请填写标题和提示词内容');
+    alert(t('options.error.emptyPrompt'));
     return;
   }
 
@@ -459,15 +479,15 @@ async function savePrompt() {
       closeModal();
       await loadPrompts();
     } else {
-      alert('保存失败: ' + response.error);
+      alert(t('options.status.saveFailed', { message: response.error }));
     }
   } catch (error: any) {
-    alert('保存失败: ' + error.message);
+    alert(t('options.status.saveFailed', { message: error.message }));
   }
 }
 
 async function deletePrompt(id: number) {
-  if (!confirm('确定要删除这个提示词吗？')) return;
+  if (!confirm(t('options.confirm.deletePrompt'))) return;
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -478,10 +498,10 @@ async function deletePrompt(id: number) {
     if (response.success) {
       await loadPrompts();
     } else {
-      alert('删除失败: ' + response.error);
+      alert(t('options.error.deleteFailed', { message: response.error }));
     }
   } catch (error: any) {
-    alert('删除失败: ' + error.message);
+    alert(t('options.error.deleteFailed', { message: error.message }));
   }
 }
 

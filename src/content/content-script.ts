@@ -1,6 +1,7 @@
 // Content Script - Runs in the context of web pages
 import { htmlToMarkdown } from '../shared/html-to-markdown';
 import { Readability } from '@mozilla/readability';
+import { t } from '../shared/i18n';
 
 function extractMainContent(): string {
   // 1. Try Mozilla Readability (Firefox Reader View algorithm)
@@ -153,7 +154,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Append discovered media URLs to markdown
           let finalMarkdown = markdown;
           if (mediaUrls.length > 0) {
-            finalMarkdown += '\n\n---\n\n**发现的多媒体链接：**\n';
+            finalMarkdown += '\n\n---\n\n' + t('content.mediaLinksHeader');
             mediaUrls.forEach(u => {
               finalMarkdown += '- [' + u + '](' + u + ')\n';
             });

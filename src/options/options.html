@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartReader - 设置</title>
+  <title data-i18n="options.title">SmartReader - 设置</title>
   <link rel="stylesheet" href="./options.css">
 </head>
 <body>
@@ -11,14 +11,14 @@
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-icon">🤖</span>
-        <h1>SmartReader</h1>
+        <h1 data-i18n="options.brand">SmartReader</h1>
       </div>
       <nav class="nav">
         <button class="nav-item active" data-tab="api">
-          <span>🔑</span> API 配置
+          <span>🔑</span> <span data-i18n="options.tab.api">API 配置</span>
         </button>
         <button class="nav-item" data-tab="prompts">
-          <span>💬</span> 提示词管理
+          <span>💬</span> <span data-i18n="options.tab.prompts">提示词管理</span>
         </button>
       </nav>
     </aside>
@@ -26,14 +26,14 @@
     <main class="main">
       <!-- API Config Tab -->
       <section id="tab-api" class="tab-content active">
-        <h2>API 配置</h2>
-        <p class="tab-desc">配置 OpenAI 兼容的 API 设置。</p>
+        <h2 data-i18n="options.section.api">API 配置</h2>
+        <p class="tab-desc" data-i18n="options.desc.api">配置 OpenAI 兼容的 API 设置。</p>
 
         <form id="apiForm" class="form">
           <div class="form-group">
-            <label for="providerSelect">API 提供商</label>
+            <label for="providerSelect" data-i18n="options.label.provider">API 提供商</label>
             <select id="providerSelect" class="form-select">
-              <option value="">— 请选择或手动填写 —</option>
+              <option value="" data-i18n="options.placeholder.selectProvider">— 请选择或手动填写 —</option>
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="gemini">Google Gemini</option>
@@ -45,33 +45,41 @@
               <option value="minimax">MiniMax</option>
               <option value="groq">Groq</option>
               <option value="mistral">Mistral</option>
-              <option value="custom">自定义</option>
+              <option value="custom" data-i18n="options.provider.custom">自定义</option>
             </select>
-            <span class="hint">选择后自动填充 Base URL 和推荐模型</span>
+            <span class="hint" data-i18n="options.hint.provider">选择后自动填充 Base URL 和推荐模型</span>
           </div>
 
           <div class="form-group">
-            <label for="baseUrl">Base URL</label>
-            <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1" required>
-            <span class="hint">OpenAI 兼容 API 的基础地址</span>
+            <label for="baseUrl" data-i18n="options.label.baseUrl">Base URL</label>
+            <input type="url" id="baseUrl" data-i18n-placeholder="options.placeholder.baseUrl" placeholder="https://api.openai.com/v1" required>
+            <span class="hint" data-i18n="options.hint.baseUrl">OpenAI 兼容 API 的基础地址</span>
           </div>
 
           <div class="form-group">
-            <label for="apiKey">API Key</label>
-            <input type="password" id="apiKey" placeholder="sk-..." required>
-            <button type="button" id="toggleApiKey" class="toggle-btn">显示</button>
-            <span class="hint">您的 API 密钥，仅存储在本地</span>
+            <label for="apiKey" data-i18n="options.label.apiKey">API Key</label>
+            <input type="password" id="apiKey" data-i18n-placeholder="options.placeholder.apiKey" placeholder="sk-..." required>
+            <button type="button" id="toggleApiKey" class="toggle-btn" data-i18n="options.btn.show">显示</button>
+            <span class="hint" data-i18n="options.hint.apiKey">您的 API 密钥，仅存储在本地</span>
           </div>
 
           <div class="form-group">
-            <label for="model">模型</label>
-            <input type="text" id="model" placeholder="gpt-4o-mini" required>
-            <span class="hint">例如：gpt-4o, gpt-4o-mini, claude-3-sonnet 等</span>
+            <label for="model" data-i18n="options.label.model">模型</label>
+            <input type="text" id="model" data-i18n-placeholder="options.placeholder.model" placeholder="gpt-4o-mini" required>
+            <span class="hint" data-i18n="options.hint.model">例如：gpt-4o, gpt-4o-mini, claude-3-sonnet 等</span>
+          </div>
+
+          <div class="form-group">
+            <label for="languageSelect" data-i18n="options.label.language">语言</label>
+            <select id="languageSelect" class="form-select">
+              <option value="zh-CN" data-i18n="options.language.zhCN">中文</option>
+              <option value="en" data-i18n="options.language.en">English</option>
+            </select>
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary">保存配置</button>
-            <button type="button" id="testApiBtn" class="btn btn-secondary">测试连接</button>
+            <button type="submit" class="btn btn-primary" data-i18n="options.btn.save">保存配置</button>
+            <button type="button" id="testApiBtn" class="btn btn-secondary" data-i18n="options.btn.testConnection">测试连接</button>
             <span id="apiSaveStatus" class="save-status"></span>
             <span id="apiTestStatus" class="test-status"></span>
           </div>
@@ -82,17 +90,17 @@
       <section id="tab-prompts" class="tab-content">
         <div class="section-header">
           <div>
-            <h2>提示词管理</h2>
-            <p class="tab-desc">创建和管理自定义提示词模板。</p>
+            <h2 data-i18n="options.section.prompts">提示词管理</h2>
+            <p class="tab-desc" data-i18n="options.desc.prompts">创建和管理自定义提示词模板。</p>
           </div>
-          <button id="addPromptBtn" class="btn btn-primary">+ 添加提示词</button>
+          <button id="addPromptBtn" class="btn btn-primary" data-i18n="options.btn.addPrompt">+ 添加提示词</button>
         </div>
 
         <div class="variables-help">
-          <h4>📋 可用变量</h4>
+          <h4 data-i18n="options.variables.title">📋 可用变量</h4>
           <ul>
-            <li><code>${html}</code> - 当前网页内容（自动转为 Markdown）</li>
-            <li><code>${text}</code> - 用户选中的文字</li>
+            <li><code>${html}</code> - <span data-i18n="options.variables.html">当前网页内容（自动转为 Markdown）</span></li>
+            <li><code>${text}</code> - <span data-i18n="options.variables.text">用户选中的文字</span></li>
           </ul>
         </div>
 
@@ -108,26 +116,26 @@
     <div class="modal-overlay"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="modalTitle">添加提示词</h3>
+        <h3 id="modalTitle" data-i18n="options.modal.addPrompt">添加提示词</h3>
         <button id="closeModal" class="close-btn">&times;</button>
       </div>
       <form id="promptForm" class="form">
         <input type="hidden" id="promptId">
         <div class="form-group">
-          <label for="promptTitle">标题</label>
-          <input type="text" id="promptTitle" placeholder="例如：总结页面" required>
+          <label for="promptTitle" data-i18n="options.label.promptTitle">标题</label>
+          <input type="text" id="promptTitle" data-i18n-placeholder="options.placeholder.promptTitle" placeholder="例如：总结页面" required>
         </div>
         <div class="form-group">
-          <label for="promptContent">提示词内容</label>
-          <textarea id="promptContent" rows="8" placeholder="请输入提示词，可使用 ${html} 和 ${text} 变量" required></textarea>
+          <label for="promptContent" data-i18n="options.label.promptContent">提示词内容</label>
+          <textarea id="promptContent" rows="8" data-i18n-placeholder="options.placeholder.promptContent" placeholder="请输入提示词，可使用 ${html} 和 ${text} 变量" required></textarea>
         </div>
         <div class="form-group">
-          <label for="promptSort">排序</label>
+          <label for="promptSort" data-i18n="options.label.sort">排序</label>
           <input type="number" id="promptSort" value="0" min="0">
         </div>
         <div class="modal-actions">
-          <button type="button" id="cancelPrompt" class="btn">取消</button>
-          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="button" id="cancelPrompt" class="btn" data-i18n="options.btn.cancel">取消</button>
+          <button type="submit" class="btn btn-primary" data-i18n="options.btn.savePrompt">保存</button>
         </div>
       </form>
     </div>

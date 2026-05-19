@@ -2,6 +2,7 @@ import { MessageType } from '../shared/types';
 import type { ApiConfig, Prompt, PageContent, ExtensionMessage } from '../shared/types';
 import { MAX_CONTENT_LENGTH } from '../shared/constants';
 import { arrayBufferToBase64 } from '../shared/utils';
+import { t, initTranslations, getLocaleSync } from '../shared/i18n';
 
 let offscreenReady = false;
 let pendingEnsure: Promise<void> | null = null;
@@ -162,6 +163,37 @@ async function dbExec(sql: string, params: unknown[] = []): Promise<void> {
   }
 }
 
+/**
+ * Send a message to a tab's content script with retry logic.
+ * Content scripts injected via executeScript may not have finished
+ * initializing their onMessage listener yet, so we retry on
+ * "Receiving end does not exist" errors.
+ */
+async function sendMessageToTab(
+  tabId: number,
+  message: any,
+  maxRetries = 3,
+  delayMs = 400
+): Promise<any> {
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, message);
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      const errMsg = error?.message || String(error);
+      if (errMsg.includes('Receiving end does not exist') && i < maxRetries - 1) {
+        console.log(`[Service Worker] Content script not ready, retrying in ${delayMs}ms... (${i + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
 // ============================================================================
 // API Config
 // ============================================================================
@@ -194,7 +226,7 @@ async function requireApiConfig(windowId?: number): Promise<ApiConfig | null> {
       try {
         await chrome.runtime.sendMessage({
           type: MessageType.STREAM_ERROR,
-          error: 'API Key 未配置。已为您打开配置页面，请填写 API 设置后重试。',
+          error: t('serviceWorker.error.apiKeyMissing'),
           windowId
         });
       } catch (sendErr: any) {
@@ -282,7 +314,7 @@ async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<s
         model: apiConfig.model,
         messages: [
           { role: 'system', content: 'You are a helpful assistant. Please respond in the same language as the user query.' },
-          { role: 'user', content: `请根据以下内容生成一个简洁的标题（不超过15个字），只返回标题文本，不要加引号、序号或任何解释：\n\n${content.substring(0, 1500)}` }
+          { role: 'user', content: t('serviceWorker.prompt.generateTitle', { content: content.substring(0, 1500) }) }
         ],
         stream: false,
         max_tokens: 30
@@ -302,13 +334,13 @@ async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<s
 }
 
 async function getHistoryList(limit: number = 100, keyword?: string, favoritesOnly?: boolean): Promise<any[]> {
-  let sql = 'SELECT id, title, url, prompt, favorite, created_at, updated_at FROM history';
+  let sql = 'SELECT id, title, url, favorite, created_at, updated_at FROM history';
   const params: unknown[] = [];
   const conditions: string[] = [];
   if (keyword && keyword.trim()) {
     const pattern = `%${keyword.trim()}%`;
-    conditions.push('(title LIKE ? OR url LIKE ? OR prompt LIKE ?)');
-    params.push(pattern, pattern, pattern);
+    conditions.push('(title LIKE ? OR url LIKE ?)');
+    params.push(pattern, pattern);
   }
   if (favoritesOnly) {
     conditions.push('favorite = 1');
@@ -331,7 +363,7 @@ async function getHistoryList(limit: number = 100, keyword?: string, favoritesOn
 }
 
 async function getHistoryDetail(id: number): Promise<any | null> {
-  const result = await dbQuery('SELECT * FROM history WHERE id = ?', [id]);
+  const result = await dbQuery('SELECT id, title, url, prompt, response, messages, favorite, created_at, updated_at FROM history WHERE id = ?', [id]);
   if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
     return null;
   }
@@ -374,7 +406,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     console.error('[Service Worker] History not found or has no messages:', historyId);
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_ERROR,
-      error: '历史记录不存在或无法读取对话内容',
+      error: t('serviceWorker.error.historyNotFound'),
       windowId
     });
     return;
@@ -387,7 +419,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     console.error('[Service Worker] Failed to parse messages for retry');
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_ERROR,
-      error: '对话内容解析失败',
+      error: t('serviceWorker.error.parseMessagesFailed'),
       windowId
     });
     return;
@@ -399,7 +431,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
       console.error('[Service Worker] No assistant message found to retry');
       await chrome.runtime.sendMessage({
         type: MessageType.STREAM_ERROR,
-        error: '没有可重试的 AI 回复',
+        error: t('serviceWorker.error.noAssistantToRetry'),
         windowId
       });
       return;
@@ -411,7 +443,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     console.error('[Service Worker] Can only retry assistant messages');
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_ERROR,
-      error: '只能重试 AI 回复消息',
+      error: t('serviceWorker.error.canOnlyRetryAssistant'),
       windowId
     });
     return;
@@ -423,7 +455,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     console.error('[Service Worker] Invalid context for retry');
     await chrome.runtime.sendMessage({
       type: MessageType.STREAM_ERROR,
-      error: '上下文格式错误',
+      error: t('serviceWorker.error.invalidContext'),
       windowId
     });
     return;
@@ -516,7 +548,7 @@ async function fetchPdfAsBase64(url: string): Promise<{ filename: string; data: 
   console.log('[Service Worker] Fetching PDF from', url);
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`下载 PDF 失败: ${response.status} ${response.statusText}`);
+    throw new Error(t('serviceWorker.error.pdfDownloadFailed', { message: `${response.status} ${response.statusText}` }));
   }
   const blob = await response.blob();
   if (blob.type && !blob.type.includes('pdf')) {
@@ -526,7 +558,7 @@ async function fetchPdfAsBase64(url: string): Promise<{ filename: string; data: 
   const size = arrayBuffer.byteLength;
   const MAX_PDF_SIZE = 32 * 1024 * 1024; // 32MB OpenAI limit
   if (size > MAX_PDF_SIZE) {
-    throw new Error(`PDF 文件过大 (${(size / 1024 / 1024).toFixed(1)}MB)，超过 OpenAI API 限制的 32MB`);
+    throw new Error(t('serviceWorker.error.pdfTooLarge', { size: (size / 1024 / 1024).toFixed(1) }));
   }
   const bytes = new Uint8Array(arrayBuffer);
   let binary = '';
@@ -589,7 +621,7 @@ async function extractPdfTextViaOffscreen(arrayBuffer: ArrayBuffer): Promise<str
     base64
   });
   if (!response || !response.success) {
-    throw new Error(response?.error || 'PDF 文本提取失败（offscreen 未返回响应）');
+    throw new Error(response?.error || t('serviceWorker.error.pdfExtractFailed'));
   }
   return response.text;
 }
@@ -605,7 +637,7 @@ async function convertPdfToMarkdownViaOffscreen(arrayBuffer: ArrayBuffer): Promi
     base64
   });
   if (!response || !response.success) {
-    throw new Error(response?.error || 'PDF 转换为 Markdown 失败（offscreen 未返回响应）');
+    throw new Error(response?.error || t('serviceWorker.error.pdfConvertFailed'));
   }
   return response.markdown;
 }
@@ -817,7 +849,7 @@ async function executePrompt(
       conversations.delete(windowId);
       const state: ConversationState = {
         historyId: null,
-        title: '自定义对话',
+        title: t('serviceWorker.title.customChat'),
         url: tabUrl || '',
         prompt: finalPrompt,
         messages: [
@@ -845,7 +877,7 @@ async function executePrompt(
         try {
           await chrome.runtime.sendMessage({
             type: MessageType.STREAM_ERROR,
-            error: `无法下载 PDF：${error.message}`,
+            error: t('serviceWorker.error.pdfDownloadFailed', { message: error.message }),
             windowId
           });
         } catch (sendErr: any) {
@@ -876,7 +908,7 @@ async function executePrompt(
           try {
             await chrome.runtime.sendMessage({
               type: MessageType.STREAM_ERROR,
-              error: '提示词不存在',
+              error: t('serviceWorker.error.promptNotFound'),
               windowId
             });
           } catch (sendErr: any) {
@@ -890,10 +922,10 @@ async function executePrompt(
       // Replace variables: ${html} becomes PDF Markdown (or hint if conversion failed)
       const htmlContent = pdfMarkdown
         ? pdfMarkdown.substring(0, MAX_CONTENT_LENGTH)
-        : `（以下是一份 PDF 文件：${tabUrl}）`;
+        : t('serviceWorker.msg.pdfHint', { url: tabUrl });
       finalPrompt = template
         .replace(/\$\{html\}/g, htmlContent)
-        .replace(/\$\{text\}/g, '(未选中文字)');
+        .replace(/\$\{text\}/g, t('serviceWorker.msg.noSelection'));
       console.log('[Service Worker] PDF prompt length:', finalPrompt.length);
       // Conversation state will be created after API config is loaded
     } else {
@@ -912,7 +944,7 @@ async function executePrompt(
 
       console.log('[Service Worker] Getting page content from tab', tabId);
       try {
-        const response = await chrome.tabs.sendMessage(tabId, {
+        const response = await sendMessageToTab(tabId, {
           type: MessageType.GET_PAGE_CONTENT
         });
         console.log('[Service Worker] Page content response:', response);
@@ -927,7 +959,7 @@ async function executePrompt(
         try {
           await chrome.runtime.sendMessage({
             type: MessageType.STREAM_ERROR,
-            error: '无法读取此页面内容。请尝试刷新页面或使用普通网页（不支持 chrome:// 等内部页面）。如果是本地文件（file://），请在扩展管理器中启用「允许访问文件网址」。',
+            error: t('serviceWorker.error.pageContentFailed'),
             windowId
           });
         } catch (sendErr: any) {
@@ -947,7 +979,7 @@ async function executePrompt(
           try {
             await chrome.runtime.sendMessage({
               type: MessageType.STREAM_ERROR,
-              error: '提示词不存在',
+              error: t('serviceWorker.error.promptNotFound'),
               windowId
             });
           } catch (sendErr: any) {
@@ -961,7 +993,7 @@ async function executePrompt(
       // Replace variables
       finalPrompt = template
         .replace(/\$\{html\}/g, pageContent.html.substring(0, MAX_CONTENT_LENGTH))
-        .replace(/\$\{text\}/g, pageContent.text || '(未选中文字)');
+        .replace(/\$\{text\}/g, pageContent.text || t('serviceWorker.msg.noSelection'));
       console.log('[Service Worker] Final prompt length:', finalPrompt.length);
       // Conversation state will be created after API config is loaded
     }
@@ -983,7 +1015,7 @@ async function executePrompt(
     conversations.delete(windowId);
     const state: ConversationState = {
       historyId: null,
-      title: isPdf ? (pdfFilename || 'PDF 文件') : (pageContent?.title || '未命名页面'),
+      title: isPdf ? (pdfFilename || t('serviceWorker.title.pdfFile')) : (pageContent?.title || t('serviceWorker.title.untitled')),
       url: tabUrl || '',
       prompt: finalPrompt,
       messages: [
@@ -1001,7 +1033,7 @@ async function executePrompt(
     try {
       await chrome.runtime.sendMessage({
         type: MessageType.STREAM_ERROR,
-        error: error.message || '执行失败',
+        error: error.message || t('serviceWorker.error.executeFailed'),
         windowId
       });
     } catch (sendErr: any) {
@@ -1034,7 +1066,7 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
         });
         await chrome.runtime.sendMessage({
           type: MessageType.STREAM_CHUNK,
-          content: `> 📄 PDF 文件：\`${tabUrl}\`\n\n---\n\n${markdown}`,
+          content: `${t('serviceWorker.msg.pdfFileHeader', { url: tabUrl })}\n\n---\n\n${markdown}`,
           windowId
         });
         await chrome.runtime.sendMessage({
@@ -1049,7 +1081,7 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
         });
         await chrome.runtime.sendMessage({
           type: MessageType.STREAM_CHUNK,
-          content: `> 📄 当前页面是 PDF 文件：\`${tabUrl}\`\n\nPDF 转换为 Markdown 失败：${error.message || '未知错误'}`,
+          content: `${t('serviceWorker.msg.pdfPageHint', { url: tabUrl })}\n\n${t('serviceWorker.error.pdfConvertError', { message: error.message || t('sidepanel.error.unknown') })}`,
           windowId
         });
         await chrome.runtime.sendMessage({
@@ -1073,7 +1105,7 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
     // 2. Get page content
     let pageContent: PageContent;
     try {
-      const response = await chrome.tabs.sendMessage(tabId, {
+      const response = await sendMessageToTab(tabId, {
         type: MessageType.GET_PAGE_CONTENT
       });
       if (!response?.success) {
@@ -1086,7 +1118,7 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
       try {
         await chrome.runtime.sendMessage({
           type: MessageType.STREAM_ERROR,
-          error: '无法读取此页面内容。请尝试刷新页面或使用普通网页。',
+          error: t('serviceWorker.error.pageContentSimple'),
           windowId
         });
       } catch {}
@@ -1117,7 +1149,7 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
     try {
       await chrome.runtime.sendMessage({
         type: MessageType.STREAM_ERROR,
-        error: error.message || '获取页面 Markdown 失败',
+        error: error.message || t('serviceWorker.error.markdownFailed'),
         windowId
       });
     } catch {}
@@ -1175,7 +1207,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
             sendResponse({ success: true });
           } catch (error: any) {
             console.error('[Service Worker] Failed to reorder prompts:', error);
-            sendResponse({ success: false, error: error.message || '排序更新失败' });
+            sendResponse({ success: false, error: error.message || t('serviceWorker.error.reorderFailed') });
           }
           break;
         }
@@ -1228,20 +1260,20 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
               sendResponse({ success: true });
             } else {
               const errorText = await response.text().catch(() => 'Unknown error');
-              let friendlyError = `API 错误 ${response.status}`;
+              let friendlyError = t('serviceWorker.apiError.generic', { status: response.status });
               if (response.status === 401) {
-                friendlyError = 'API Key 无效或已过期';
+                friendlyError = t('serviceWorker.apiError.invalidKey');
               } else if (response.status === 404) {
-                friendlyError = '模型不存在或 Base URL 错误';
+                friendlyError = t('serviceWorker.apiError.modelNotFound');
               } else if (response.status === 429) {
-                friendlyError = '请求过于频繁，请稍后再试';
+                friendlyError = t('serviceWorker.apiError.rateLimited');
               }
               console.error('[Service Worker] API test failed:', response.status, errorText);
               sendResponse({ success: false, error: friendlyError });
             }
           } catch (error: any) {
             console.error('[Service Worker] API test network error:', error);
-            sendResponse({ success: false, error: '网络错误：' + (error.message || '无法连接到 API') });
+            sendResponse({ success: false, error: t('serviceWorker.apiError.networkError', { message: error.message || t('serviceWorker.apiError.connectFailed') }) });
           }
           break;
         }
@@ -1265,7 +1297,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
             state.abortController = null;
             sendResponse({ success: true });
           } else {
-            sendResponse({ success: false, error: 'No active stream for this window' });
+            sendResponse({ success: false, error: t('serviceWorker.error.noActiveStream') });
           }
           break;
         }
@@ -1280,14 +1312,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           if (!state && historyId) {
             const item = await getHistoryDetail(historyId);
             if (!item || !item.messages) {
-              sendResponse({ success: false, error: '历史记录不存在或无法读取对话内容' });
+              sendResponse({ success: false, error: t('serviceWorker.error.historyNotFound') });
               return;
             }
             try {
               const messages = JSON.parse(item.messages) as Array<{role: string; content: string}>;
               const apiConfig = await requireApiConfig(windowId);
               if (!apiConfig) {
-                sendResponse({ success: false, error: 'API Key 未配置' });
+                sendResponse({ success: false, error: t('serviceWorker.error.apiKeyMissingShort') });
                 return;
               }
               state = {
@@ -1301,13 +1333,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
               };
               conversations.set(windowId, state);
             } catch {
-              sendResponse({ success: false, error: '对话内容解析失败' });
+              sendResponse({ success: false, error: t('serviceWorker.error.parseMessagesFailed') });
               return;
             }
           }
 
           if (!state) {
-            sendResponse({ success: false, error: '当前没有活跃的对话' });
+            sendResponse({ success: false, error: t('serviceWorker.error.noActiveConversation') });
             return;
           }
 
@@ -1315,7 +1347,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           if (!state.apiConfig.api_key) {
             const apiConfig = await requireApiConfig(windowId);
             if (!apiConfig) {
-              sendResponse({ success: false, error: 'API Key 未配置' });
+              sendResponse({ success: false, error: t('serviceWorker.error.apiKeyMissingShort') });
               return;
             }
             state.apiConfig = apiConfig;
@@ -1411,5 +1443,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 
 // Initialize offscreen document on startup
 ensureOffscreenDocument().catch(console.error);
+
+// Initialize i18n
+initTranslations().catch(console.error);
 
 console.log('[Service Worker] Initialized');

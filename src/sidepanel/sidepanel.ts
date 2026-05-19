@@ -1,6 +1,7 @@
 import { marked } from 'marked';
 import { MessageType } from '../shared/types';
 import { debounce, truncate } from '../shared/utils';
+import { t, initPage } from '../shared/i18n';
 
 let accumulatedContent = '';
 let isStreaming = false;
@@ -16,7 +17,8 @@ let currentHistorySupportsFollowUp = false;
 let currentHistoryMarkdown = '';
 let showFavoritesOnly = false;
 
-function init() {
+async function init() {
+  await initPage();
   console.log('[SidePanel] init() called');
 
   // Listen for messages from service worker
@@ -119,7 +121,7 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMes
     const turnDiv = document.createElement('div');
     turnDiv.className = 'turn';
     const archivedContent = accumulatedContent;
-    turnDiv.innerHTML = `<div class="turn-toolbar"><button class="msg-copy-btn" title="拷贝 Markdown">📋</button></div><div class="markdown-content">${renderMarkdown(archivedContent)}</div>`;
+    turnDiv.innerHTML = `<div class="turn-toolbar"><button class="msg-copy-btn" title="${t('sidepanel.btn.copyMarkdown')}">📋</button></div><div class="markdown-content">${renderMarkdown(archivedContent)}</div>`;
     const copyBtn = turnDiv.querySelector('.msg-copy-btn');
     if (copyBtn) {
       copyBtn.addEventListener('click', () => copyMarkdownToClipboard(archivedContent, copyBtn as HTMLElement));
@@ -143,7 +145,7 @@ function handleStreamStart(promptPreview?: string, isFollowUp?: boolean, userMes
 
   showAbortButton();
   hideFollowUpArea();
-  updateStatus('active', 'AI 生成中...');
+  updateStatus('active', t('sidepanel.status.generating'));
 
   if (promptPreview) {
     showPromptPreview(promptPreview);
@@ -169,7 +171,7 @@ function handleStreamChunk(content: string) {
 function handleStreamComplete(historyId?: number) {
   console.log('[SidePanel] STREAM_COMPLETE');
   isStreaming = false;
-  updateStatus('idle', '完成');
+  updateStatus('idle', t('sidepanel.status.completed'));
 
   if (historyId) {
     currentOutputHistoryId = historyId;
@@ -200,19 +202,19 @@ function hidePromptPreview() {
 function handleStreamError(error: string) {
   console.log('[SidePanel] STREAM_ERROR:', error);
   isStreaming = false;
-  updateStatus('error', '出错');
+  updateStatus('error', t('sidepanel.status.error'));
 
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse) {
     const retryBtnHtml = currentOutputHistoryId != null
-      ? '<button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button>'
+      ? `<button class="msg-retry-btn" id="currentRetryBtn" title="${t('sidepanel.btn.retry')}">🔄</button>`
       : '';
     const contentHtml = accumulatedContent
-      ? `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="拷贝 Markdown">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`
+      ? `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`
       : '';
     currentResponse.innerHTML = `
       <div class="error-message">
-        <h3>❌ 出错了</h3>
+        <h3>${t('sidepanel.error.title')}</h3>
         <p>${escapeHtml(error)}</p>
       </div>
       ${contentHtml}
@@ -232,7 +234,7 @@ function handleStreamError(error: string) {
 function handleStreamAborted() {
   console.log('[SidePanel] STREAM_ABORTED');
   isStreaming = false;
-  updateStatus('aborted', '已中断');
+  updateStatus('aborted', t('sidepanel.status.aborted'));
 
   renderAccumulatedContent();
   hideAbortButton();
@@ -244,9 +246,9 @@ function renderAccumulatedContent() {
   const currentResponse = document.getElementById('currentResponse');
   if (currentResponse && accumulatedContent) {
     const retryBtnHtml = currentOutputHistoryId != null
-      ? '<button class="msg-retry-btn" id="currentRetryBtn" title="重新生成">🔄</button>'
+      ? `<button class="msg-retry-btn" id="currentRetryBtn" title="${t('sidepanel.btn.retry')}">🔄</button>`
       : '';
-    currentResponse.innerHTML = `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="拷贝 Markdown">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    currentResponse.innerHTML = `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
     bindCurrentRetryButton();
     const copyBtn = currentResponse.querySelector('.msg-copy-btn');
     if (copyBtn) {
@@ -267,7 +269,7 @@ function bindCurrentRetryButton() {
 
 async function retryCurrentMessage() {
   if (currentOutputHistoryId == null) {
-    alert('对话尚未保存，无法重试');
+    alert(t('sidepanel.error.notSaved'));
     return;
   }
   try {
@@ -313,7 +315,7 @@ function showAbortButton() {
   if (btn) {
     btn.classList.remove('hidden');
     btn.disabled = false;
-    btn.textContent = '⏹ 中断';
+    btn.textContent = t('sidepanel.btn.abort');
   }
 }
 
@@ -375,8 +377,8 @@ async function handleFollowUpSend() {
       if (currentResponse) {
         currentResponse.innerHTML = `
           <div class="error-message">
-            <h3>❌ 无法发送追问</h3>
-            <p>${escapeHtml(response?.error || '未知错误')}</p>
+            <h3>${t('sidepanel.error.followUpFailed')}</h3>
+            <p>${escapeHtml(response?.error || t('sidepanel.error.unknown'))}</p>
           </div>
         `;
       }
@@ -403,7 +405,7 @@ async function handleAbortClick() {
   const btn = document.getElementById('abortBtn');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = '中断中...';
+    btn.textContent = t('sidepanel.status.aborting');
   }
 
   try {
@@ -533,9 +535,9 @@ function renderHistoryList(items: any[]) {
     const isFav = item.favorite ? true : false;
     return `
     <div class="history-item" data-id="${item.id}">
-      <button class="history-item-favorite ${isFav ? 'is-favorite' : ''}" data-id="${item.id}" title="${isFav ? '取消收藏' : '收藏'}">${isFav ? '⭐' : '☆'}</button>
-      <button class="history-item-delete" data-id="${item.id}" title="删除">🗑</button>
-      <div class="history-item-title">${escapeHtml(item.title || '未命名')}</div>
+      <button class="history-item-favorite ${isFav ? 'is-favorite' : ''}" data-id="${item.id}" title="${isFav ? t('sidepanel.btn.unfavorite') : t('sidepanel.btn.favorite')}">${isFav ? '⭐' : '☆'}</button>
+      <button class="history-item-delete" data-id="${item.id}" title="${t('sidepanel.btn.delete')}">🗑</button>
+      <div class="history-item-title">${escapeHtml(item.title || t('sidepanel.label.untitled'))}</div>
       <div class="history-item-meta">
         <span class="history-item-url">${escapeHtml(item.url || '')}</span>
         <span>${formatDate(item.created_at)}</span>
@@ -574,7 +576,7 @@ async function showHistoryDetail(id: number) {
   const metaEl = document.getElementById('historyMeta');
   if (!contentEl || !metaEl) return;
 
-  contentEl.innerHTML = '<p style="color:#888;padding:20px;">加载中...</p>';
+  contentEl.innerHTML = `<p style="color:#888;padding:20px;">${t('sidepanel.loading')}</p>`;
   showView('history-detail');
 
   try {
@@ -589,13 +591,13 @@ async function showHistoryDetail(id: number) {
       const showViewBtn = hasPrompt && item.prompt.length > 200;
       const isFav = item.favorite ? true : false;
       metaEl.innerHTML = `
-        <div class="history-meta-title">${escapeHtml(item.title || '未命名')}</div>
+        <div class="history-meta-title">${escapeHtml(item.title || t('sidepanel.label.untitled'))}</div>
         ${item.url ? `<a class="history-meta-url" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>` : ''}
         ${promptDisplay ? `<div class="history-meta-prompt">${escapeHtml(promptDisplay)}</div>` : ''}
-        ${showViewBtn ? `<button class="view-prompt-btn" id="viewPromptBtn">🔍 查看完整提示词</button>` : ''}
+        ${showViewBtn ? `<button class="view-prompt-btn" id="viewPromptBtn">${t('sidepanel.btn.viewPrompt')}</button>` : ''}
         <div class="history-meta-footer" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
           <div class="history-meta-time">${formatDate(item.created_at)}</div>
-          <button class="history-detail-favorite ${isFav ? 'is-favorite' : ''}" id="detailFavoriteBtn" title="${isFav ? '取消收藏' : '收藏'}">${isFav ? '⭐ 已收藏' : '☆ 收藏'}</button>
+          <button class="history-detail-favorite ${isFav ? 'is-favorite' : ''}" id="detailFavoriteBtn" title="${isFav ? t('sidepanel.btn.unfavorite') : t('sidepanel.btn.favorite')}">${isFav ? t('sidepanel.label.favorited') : t('sidepanel.label.favorite')}</button>
         </div>
       `;
 
@@ -622,16 +624,16 @@ async function showHistoryDetail(id: number) {
             if (msg.role === 'user') {
               const userContent = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
               html += `<div class="turn user-turn" data-index="${index}" title="${escapeHtml(msg.content)}">
-                <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
+                <button class="msg-delete-btn" data-index="${index}" title="${t('sidepanel.btn.deleteMessage')}">🗑</button>
                 ${escapeHtml(userContent)}
               </div>`;
             } else if (msg.role === 'assistant') {
               assistantContents.push(msg.content);
               html += `<div class="turn" data-index="${index}">
                 <div class="turn-toolbar">
-                  <button class="msg-copy-btn" data-index="${index}" title="拷贝 Markdown">📋</button>
-                  <button class="msg-delete-btn" data-index="${index}" title="删除此消息">🗑</button>
-                  <button class="msg-retry-btn" data-index="${index}" title="重新生成">🔄</button>
+                  <button class="msg-copy-btn" data-index="${index}" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>
+                  <button class="msg-delete-btn" data-index="${index}" title="${t('sidepanel.btn.deleteMessage')}">🗑</button>
+                  <button class="msg-retry-btn" data-index="${index}" title="${t('sidepanel.btn.retry')}">🔄</button>
                 </div>
                 <div class="markdown-content">${renderMarkdown(msg.content)}</div>
               </div>`;
@@ -679,16 +681,16 @@ async function showHistoryDetail(id: number) {
         currentHistoryMarkdown = item.response || '';
       }
     } else {
-      contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
+      contentEl.innerHTML = `<p style="color:#c62828;padding:20px;">${t('sidepanel.error.loadFailed')}</p>`;
     }
   } catch (error) {
     console.error('[SidePanel] Failed to load history detail:', error);
-    contentEl.innerHTML = '<p style="color:#c62828;padding:20px;">加载失败</p>';
+    contentEl.innerHTML = `<p style="color:#c62828;padding:20px;">${t('sidepanel.error.loadFailed')}</p>`;
   }
 }
 
 async function deleteHistoryItem(id: number) {
-  if (!window.confirm('确定删除这条历史记录？')) return;
+  if (!window.confirm(t('sidepanel.confirm.deleteHistory'))) return;
   try {
     await chrome.runtime.sendMessage({ type: MessageType.DELETE_HISTORY, id });
     showView('history-list');
@@ -714,7 +716,7 @@ async function toggleFavoriteItem(id: number) {
 }
 
 async function deleteHistoryMessage(historyId: number, messages: Array<{role: string; content: string}>, index: number) {
-  if (!window.confirm('确定删除这条消息？')) return;
+  if (!window.confirm(t('sidepanel.confirm.deleteMessage'))) return;
   try {
     const updatedMessages = messages.filter((_, i) => i !== index);
     // Recompute response as the last assistant message content, or empty if none
@@ -733,7 +735,7 @@ async function deleteHistoryMessage(historyId: number, messages: Array<{role: st
 }
 
 async function retryHistoryMessage(historyId: number, messageIndex: number) {
-  if (!window.confirm('确定重新生成这条回复？')) return;
+  if (!window.confirm(t('sidepanel.confirm.retryMessage'))) return;
   try {
     const win = await chrome.windows.getCurrent();
     const response = await chrome.runtime.sendMessage({
@@ -751,7 +753,7 @@ async function retryHistoryMessage(historyId: number, messageIndex: number) {
 }
 
 async function clearAllHistory() {
-  if (!window.confirm('确定清空所有历史记录？此操作不可恢复。')) return;
+  if (!window.confirm(t('sidepanel.confirm.clearHistory'))) return;
   try {
     await chrome.runtime.sendMessage({ type: MessageType.CLEAR_HISTORY });
     await loadHistoryList();

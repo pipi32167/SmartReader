@@ -1,11 +1,13 @@
 import { MessageType } from '../shared/types';
 import type { Prompt } from '../shared/types';
+import { t, initPage } from '../shared/i18n';
 
 let prompts: Prompt[] = [];
 
 const POPUP_INPUT_CACHE_KEY = 'popup_custom_prompt_input';
 
 async function init() {
+  await initPage();
   document.getElementById('optionsBtn')?.addEventListener('click', openOptions);
   document.getElementById('markdownBtn')?.addEventListener('click', handleMarkdownClick);
   document.getElementById('historyBtn')?.addEventListener('click', handleHistoryClick);
@@ -57,13 +59,13 @@ async function loadPrompts() {
       prompts = response.data || [];
       renderPrompts();
     } else {
-      const err = response?.error || '加载提示词失败';
+      const err = response?.error || t('popup.error.loadPromptsFailed');
       console.error('[Popup] GET_PROMPTS failed:', err, response);
       showError(err);
     }
   } catch (error: any) {
     const errMsg = error?.message || String(error);
-    showError('无法连接到后台服务: ' + errMsg);
+    showError(t('popup.error.connectFailed', { message: errMsg }));
     console.error('[Popup] Failed to load prompts:', error);
   } finally {
     showLoading(false);
@@ -106,14 +108,14 @@ async function handlePromptClick(promptId: number) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.windowId) {
-      showError('无法获取当前标签页');
+      showError(t('popup.error.noTab'));
       return;
     }
 
     // Check API config before opening side panel
     const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
     if (!apiConfig?.data?.api_key) {
-      showError('API Key 未配置，请先在设置中配置 API');
+      showError(t('popup.error.noApiKey'));
       setTimeout(() => {
         chrome.runtime.openOptionsPage();
         window.close();
@@ -138,7 +140,7 @@ async function handlePromptClick(promptId: number) {
     // Close popup
     window.close();
   } catch (error: any) {
-    showError('操作失败: ' + error.message);
+    showError(t('popup.error.generic', { message: error.message }));
     console.error('[Popup] handlePromptClick error:', error);
   }
 }
@@ -150,7 +152,7 @@ async function detectContextStatus() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
-      statusEl.textContent = '📄 网页全文';
+      statusEl.textContent = t('popup.status.fullPage');
       return;
     }
 
@@ -164,15 +166,18 @@ async function detectContextStatus() {
       // May already be injected
     }
 
+    // Wait briefly for content script to initialize its onMessage listener
+    await new Promise(r => setTimeout(r, 300));
+
     const response = await chrome.tabs.sendMessage(tab.id, { type: MessageType.GET_SELECTION });
     if (response?.success && response.data?.text?.trim()) {
-      statusEl.textContent = '📝 选中文字';
+      statusEl.textContent = t('popup.status.selection');
     } else {
-      statusEl.textContent = '📄 网页全文';
+      statusEl.textContent = t('popup.status.fullPage');
     }
   } catch {
     // Default to full page on any error
-    statusEl.textContent = '📄 网页全文';
+    statusEl.textContent = t('popup.status.fullPage');
   }
 }
 
@@ -182,7 +187,7 @@ async function handleCustomSend() {
   const includeContent = (document.getElementById('includeContent') as HTMLInputElement)?.checked ?? true;
 
   if (!userInput) {
-    showError('请输入指令');
+    showError(t('popup.error.emptyInput'));
     return;
   }
 
@@ -191,14 +196,14 @@ async function handleCustomSend() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.windowId) {
-      showError('无法获取当前标签页');
+      showError(t('popup.error.noTab'));
       return;
     }
 
     // Check API config before opening side panel
     const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
     if (!apiConfig?.data?.api_key) {
-      showError('API Key 未配置，请先在设置中配置 API');
+      showError(t('popup.error.noApiKey'));
       setTimeout(() => {
         chrome.runtime.openOptionsPage();
         window.close();
@@ -230,7 +235,7 @@ async function handleCustomSend() {
     // Close popup
     window.close();
   } catch (error: any) {
-    showError('操作失败: ' + error.message);
+    showError(t('popup.error.generic', { message: error.message }));
     console.error('[Popup] handleCustomSend error:', error);
   }
 }
@@ -239,7 +244,7 @@ async function handleMarkdownClick() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !tab.windowId) {
-      showError('无法获取当前标签页');
+      showError(t('popup.error.noTab'));
       return;
     }
 
@@ -259,7 +264,7 @@ async function handleMarkdownClick() {
     // Close popup
     window.close();
   } catch (error: any) {
-    showError('操作失败: ' + error.message);
+    showError(t('popup.error.generic', { message: error.message }));
     console.error('[Popup] handleMarkdownClick error:', error);
   }
 }
@@ -268,7 +273,7 @@ async function handleHistoryClick() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.windowId) {
-      showError('无法获取当前窗口');
+      showError(t('popup.error.noTab'));
       return;
     }
 
@@ -286,7 +291,7 @@ async function handleHistoryClick() {
     // Close popup
     window.close();
   } catch (error: any) {
-    showError('操作失败: ' + error.message);
+    showError(t('popup.error.generic', { message: error.message }));
     console.error('[Popup] handleHistoryClick error:', error);
   }
 }
