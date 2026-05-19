@@ -74,8 +74,8 @@ export const en: TranslationMap = {
   // Options
   'options.title': 'SmartReader - Settings',
   'options.brand': 'SmartReader',
-  'options.tab.api': '🔑 API Config',
-  'options.tab.prompts': '💬 Prompts',
+  'options.tab.api': 'API Config',
+  'options.tab.prompts': 'Prompts',
   'options.section.api': 'API Configuration',
   'options.desc.api': 'Configure OpenAI-compatible API settings.',
   'options.section.prompts': 'Prompt Management',

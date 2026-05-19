@@ -74,8 +74,8 @@ export const zhCN: TranslationMap = {
   // Options
   'options.title': 'SmartReader - 设置',
   'options.brand': 'SmartReader',
-  'options.tab.api': '🔑 API 配置',
-  'options.tab.prompts': '💬 提示词管理',
+  'options.tab.api': 'API 配置',
+  'options.tab.prompts': '提示词管理',
   'options.section.api': 'API 配置',
   'options.desc.api': '配置 OpenAI 兼容的 API 设置。',
   'options.section.prompts': '提示词管理',
