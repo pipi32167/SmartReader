@@ -199,6 +199,24 @@ function hidePromptPreview() {
   }
 }
 
+function openInNewPageBtnHtml() {
+  return currentOutputHistoryId != null
+    ? `<button class="msg-open-btn" id="currentOpenBtn" title="${t('sidepanel.btn.openInNewPage')}">↗</button>`
+    : '';
+}
+
+function bindCurrentOpenButton() {
+  const openBtn = document.getElementById('currentOpenBtn');
+  if (openBtn) {
+    openBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentOutputHistoryId != null) {
+        openConversationInNewPage(currentOutputHistoryId);
+      }
+    });
+  }
+}
+
 function handleStreamError(error: string) {
   console.log('[SidePanel] STREAM_ERROR:', error);
   isStreaming = false;
@@ -210,7 +228,7 @@ function handleStreamError(error: string) {
       ? `<button class="msg-retry-btn" id="currentRetryBtn" title="${t('sidepanel.btn.retry')}">🔄</button>`
       : '';
     const contentHtml = accumulatedContent
-      ? `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`
+      ? `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${openInNewPageBtnHtml()}${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`
       : '';
     currentResponse.innerHTML = `
       <div class="error-message">
@@ -220,6 +238,7 @@ function handleStreamError(error: string) {
       ${contentHtml}
     `;
     bindCurrentRetryButton();
+    bindCurrentOpenButton();
     const copyBtn = currentResponse.querySelector('.msg-copy-btn');
     if (copyBtn) {
       copyBtn.addEventListener('click', () => copyMarkdownToClipboard(accumulatedContent, copyBtn as HTMLElement));
@@ -248,8 +267,9 @@ function renderAccumulatedContent() {
     const retryBtnHtml = currentOutputHistoryId != null
       ? `<button class="msg-retry-btn" id="currentRetryBtn" title="${t('sidepanel.btn.retry')}">🔄</button>`
       : '';
-    currentResponse.innerHTML = `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
+    currentResponse.innerHTML = `<div class="response-toolbar"><button class="msg-copy-btn" data-copy="current" title="${t('sidepanel.btn.copyMarkdown')}">📋</button>${openInNewPageBtnHtml()}${retryBtnHtml}</div><div class="markdown-content">${renderMarkdown(accumulatedContent)}</div>`;
     bindCurrentRetryButton();
+    bindCurrentOpenButton();
     const copyBtn = currentResponse.querySelector('.msg-copy-btn');
     if (copyBtn) {
       copyBtn.addEventListener('click', () => copyMarkdownToClipboard(accumulatedContent, copyBtn as HTMLElement));
@@ -535,6 +555,7 @@ function renderHistoryList(items: any[]) {
     const isFav = item.favorite ? true : false;
     return `
     <div class="history-item" data-id="${item.id}">
+      <button class="history-item-open" data-id="${item.id}" title="${t('sidepanel.btn.openInNewPage')}">↗</button>
       <button class="history-item-favorite ${isFav ? 'is-favorite' : ''}" data-id="${item.id}" title="${isFav ? t('sidepanel.btn.unfavorite') : t('sidepanel.btn.favorite')}">${isFav ? '⭐' : '☆'}</button>
       <button class="history-item-delete" data-id="${item.id}" title="${t('sidepanel.btn.delete')}">🗑</button>
       <div class="history-item-title">${escapeHtml(item.title || t('sidepanel.label.untitled'))}</div>
@@ -550,6 +571,14 @@ function renderHistoryList(items: any[]) {
     el.addEventListener('click', () => {
       const id = Number((el as HTMLElement).dataset.id);
       showHistoryDetail(id);
+    });
+  });
+
+  listEl.querySelectorAll('.history-item-open').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = Number((el as HTMLElement).dataset.id);
+      openConversationInNewPage(id);
     });
   });
 
@@ -762,6 +791,14 @@ async function clearAllHistory() {
   }
 }
 
+function openConversationInNewPage(historyId: number) {
+  try {
+    void chrome.tabs.create({ url: chrome.runtime.getURL(`chat.html?historyId=${historyId}`) });
+  } catch (error) {
+    console.error('[SidePanel] Failed to open chat tab:', error);
+  }
+}
+
 function formatDate(timestamp: number): string {
   if (!timestamp) return '';
   const d = new Date(timestamp);
@@ -812,6 +849,15 @@ document.addEventListener('DOMContentLoaded', () => {
     deleteHistoryBtn.addEventListener('click', () => {
       if (currentHistoryId !== null) {
         deleteHistoryItem(currentHistoryId);
+      }
+    });
+  }
+
+  const openInNewPageDetailBtn = document.getElementById('openInNewPageDetailBtn');
+  if (openInNewPageDetailBtn) {
+    openInNewPageDetailBtn.addEventListener('click', () => {
+      if (currentHistoryId !== null) {
+        openConversationInNewPage(currentHistoryId);
       }
     });
   }

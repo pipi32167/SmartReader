@@ -139,6 +139,7 @@ export default defineConfig(({ mode }) => {
           'popup': resolve(__dirname, 'src/popup/popup.html'),
           'sidepanel': resolve(__dirname, 'src/sidepanel/sidepanel.html'),
           'options': resolve(__dirname, 'src/options/options.html'),
+          'chat': resolve(__dirname, 'src/chat/chat.html'),
         },
         output: {
           entryFileNames: (chunkInfo) => {

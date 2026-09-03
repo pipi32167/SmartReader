@@ -53,6 +53,7 @@ export const en: TranslationMap = {
   'sidepanel.btn.favorite': 'Favorite',
   'sidepanel.btn.viewPrompt': '🔍 View Full Prompt',
   'sidepanel.btn.deleteMessage': 'Delete this message',
+  'sidepanel.btn.openInNewPage': 'Open in new tab',
   'sidepanel.placeholder.followUp': 'Ask a follow-up...',
   'sidepanel.history.searchPlaceholder': 'Search title, URL, prompt...',
   'sidepanel.history.empty': 'No history yet',
@@ -70,6 +71,11 @@ export const en: TranslationMap = {
   'sidepanel.confirm.deleteMessage': 'Are you sure you want to delete this message?',
   'sidepanel.confirm.retryMessage': 'Are you sure you want to regenerate this response?',
   'sidepanel.confirm.clearHistory': 'Are you sure you want to clear all history? This cannot be undone.',
+
+  // Chat tab (full-page conversation)
+  'chat.title': 'SmartReader - Chat',
+  'chat.error.noHistoryParam': 'Missing a valid conversation parameter (historyId)',
+  'chat.error.disconnected': 'Lost connection to the background service. Please reload the page.',
 
   // Options
   'options.title': 'SmartReader - Settings',

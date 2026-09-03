@@ -93,6 +93,16 @@ export const MessageType = {
 
   // Popup → Side Panel
   SHOW_HISTORY_VIEW: 'SHOW_HISTORY_VIEW',
+
+  // Chat tab (full-page) ↔ Service Worker — long-lived runtime Port
+  CHAT_OPEN: 'CHAT_OPEN',
+  CHAT_OPENED: 'CHAT_OPENED',
+  CHAT_OPEN_ERROR: 'CHAT_OPEN_ERROR',
+  CHAT_FOLLOW_UP: 'CHAT_FOLLOW_UP',
+  CHAT_RETRY: 'CHAT_RETRY',
+  CHAT_DELETE_MESSAGE: 'CHAT_DELETE_MESSAGE',
+  CHAT_DELETED: 'CHAT_DELETED',
+  CHAT_ABORT: 'CHAT_ABORT',
 } as const;
 
 export type MessageTypeValue = typeof MessageType[keyof typeof MessageType];

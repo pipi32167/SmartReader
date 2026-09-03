@@ -19,6 +19,20 @@ interface ConversationState {
 
 const conversations = new Map<number, ConversationState>();
 
+type StreamEmitter = (event: any) => void | Promise<void>;
+const chatSessions = new Map<chrome.runtime.Port, ConversationState>();
+const CHAT_PORT_NAME = 'smartreader-chat';
+
+/** Side-panel path: broadcast stream events to a specific window. */
+function broadcastEmitter(windowId: number): StreamEmitter {
+  return (event) => chrome.runtime.sendMessage({ ...event, windowId });
+}
+
+/** Chat-tab path: deliver stream events only to the owning port. */
+function portEmitter(port: chrome.runtime.Port): StreamEmitter {
+  return (event) => { try { port.postMessage(event); } catch {} };
+}
+
 // ============================================================================
 // Offscreen Document Management
 // ============================================================================
@@ -218,17 +232,14 @@ async function getApiConfig(): Promise<ApiConfig> {
   return config as ApiConfig;
 }
 
-async function requireApiConfig(windowId?: number): Promise<ApiConfig | null> {
+async function requireApiConfig(windowId?: number, emit?: StreamEmitter): Promise<ApiConfig | null> {
   const apiConfig = await getApiConfig();
   if (!apiConfig.api_key) {
     chrome.runtime.openOptionsPage();
-    if (windowId !== undefined) {
+    const emitter = emit ?? (windowId !== undefined ? broadcastEmitter(windowId) : undefined);
+    if (emitter) {
       try {
-        await chrome.runtime.sendMessage({
-          type: MessageType.STREAM_ERROR,
-          error: t('serviceWorker.error.apiKeyMissing'),
-          windowId
-        });
+        await emitter({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.apiKeyMissing') });
       } catch (sendErr: any) {
         console.error('[Service Worker] Failed to send STREAM_ERROR:', sendErr.message);
       }
@@ -274,8 +285,7 @@ async function getPromptById(id: number): Promise<Prompt | null> {
 // History
 // ============================================================================
 
-async function saveOrUpdateHistory(windowId: number, response: string): Promise<void> {
-  const state = conversations.get(windowId);
+async function saveOrUpdateHistory(state: ConversationState, response: string): Promise<void> {
   if (!state) return;
   const now = Date.now();
 
@@ -295,7 +305,7 @@ async function saveOrUpdateHistory(windowId: number, response: string): Promise<
       );
       state.historyId = result[0]?.values[0][0] ?? null;
     }
-    console.log('[Service Worker] History saved for window', windowId, 'historyId:', state.historyId);
+    console.log('[Service Worker] History saved, historyId:', state.historyId);
   } catch (error: any) {
     console.error('[Service Worker] Failed to save history:', error);
   }
@@ -400,15 +410,57 @@ async function toggleFavorite(id: number): Promise<number> {
   return newValue;
 }
 
+interface RetryContext {
+  messageIndex: number;
+  context: Array<{ role: string; content: string }>;
+  preview: string;
+}
+
+/**
+ * Validate that `messageIndex` can be retried and compute the context/preview
+ * to resend. `-1` resolves to the last assistant message. Errors are reported
+ * back through `emit`; returns null when retry is not possible.
+ */
+async function resolveRetryContext(
+  messages: Array<{ role: string; content: string }>,
+  messageIndex: number,
+  emit: StreamEmitter
+): Promise<RetryContext | null> {
+  let index = messageIndex;
+  if (index === -1) {
+    const lastAssistantIdx = messages.reduce((lastIdx, msg, idx) => msg.role === 'assistant' ? idx : lastIdx, -1);
+    if (lastAssistantIdx === -1) {
+      console.error('[Service Worker] No assistant message found to retry');
+      await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.noAssistantToRetry') });
+      return null;
+    }
+    index = lastAssistantIdx;
+  }
+
+  if (messages[index]?.role !== 'assistant') {
+    console.error('[Service Worker] Can only retry assistant messages');
+    await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.canOnlyRetryAssistant') });
+    return null;
+  }
+
+  const context = messages.slice(0, index);
+  const lastMsg = context[context.length - 1];
+  if (!lastMsg || lastMsg.role !== 'user') {
+    console.error('[Service Worker] Invalid context for retry');
+    await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.invalidContext') });
+    return null;
+  }
+
+  const preview = lastMsg.content.length > 200 ? lastMsg.content.slice(0, 200) + '...' : lastMsg.content;
+  return { messageIndex: index, context, preview };
+}
+
 async function retryHistoryMessage(historyId: number, messageIndex: number, windowId: number): Promise<void> {
+  const emit = broadcastEmitter(windowId);
   const item = await getHistoryDetail(historyId);
   if (!item || !item.messages) {
     console.error('[Service Worker] History not found or has no messages:', historyId);
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_ERROR,
-      error: t('serviceWorker.error.historyNotFound'),
-      windowId
-    });
+    await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.historyNotFound') });
     return;
   }
 
@@ -417,49 +469,12 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     messages = JSON.parse(item.messages);
   } catch {
     console.error('[Service Worker] Failed to parse messages for retry');
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_ERROR,
-      error: t('serviceWorker.error.parseMessagesFailed'),
-      windowId
-    });
+    await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.parseMessagesFailed') });
     return;
   }
 
-  if (messageIndex === -1) {
-    const lastAssistantIdx = messages.reduce((lastIdx, msg, idx) => msg.role === 'assistant' ? idx : lastIdx, -1);
-    if (lastAssistantIdx === -1) {
-      console.error('[Service Worker] No assistant message found to retry');
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_ERROR,
-        error: t('serviceWorker.error.noAssistantToRetry'),
-        windowId
-      });
-      return;
-    }
-    messageIndex = lastAssistantIdx;
-  }
-
-  if (messages[messageIndex]?.role !== 'assistant') {
-    console.error('[Service Worker] Can only retry assistant messages');
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_ERROR,
-      error: t('serviceWorker.error.canOnlyRetryAssistant'),
-      windowId
-    });
-    return;
-  }
-
-  const contextMessages = messages.slice(0, messageIndex);
-  const lastMsg = contextMessages[contextMessages.length - 1];
-  if (!lastMsg || lastMsg.role !== 'user') {
-    console.error('[Service Worker] Invalid context for retry');
-    await chrome.runtime.sendMessage({
-      type: MessageType.STREAM_ERROR,
-      error: t('serviceWorker.error.invalidContext'),
-      windowId
-    });
-    return;
-  }
+  const resolved = await resolveRetryContext(messages, messageIndex, emit);
+  if (!resolved) return;
 
   const apiConfig = await requireApiConfig(windowId);
   if (!apiConfig) return;
@@ -469,15 +484,45 @@ async function retryHistoryMessage(historyId: number, messageIndex: number, wind
     title: item.title,
     url: item.url || '',
     prompt: item.prompt || '',
-    messages: contextMessages,
+    messages: resolved.context,
     abortController: null,
     apiConfig
   };
   conversations.set(windowId, state);
 
-  console.log('[Service Worker] Retrying message at index', messageIndex, 'for history', historyId);
-  const preview = lastMsg.content.length > 200 ? lastMsg.content.slice(0, 200) + '...' : lastMsg.content;
-  await streamAIResponse(windowId, preview);
+  console.log('[Service Worker] Retrying message at index', resolved.messageIndex, 'for history', historyId);
+  await streamAIResponse(windowId, resolved.preview);
+}
+
+/**
+ * Chat-tab path: retry a message inside the port-scoped conversation session.
+ */
+async function retryChatMessage(port: chrome.runtime.Port, messageIndex: number): Promise<void> {
+  const emit = portEmitter(port);
+  const state = chatSessions.get(port);
+  if (!state) {
+    await emit({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.noActiveConversation') });
+    return;
+  }
+
+  const resolved = await resolveRetryContext(state.messages, messageIndex, emit);
+  if (!resolved) return;
+
+  const apiConfig = state.apiConfig.api_key
+    ? state.apiConfig
+    : await requireApiConfig(undefined, emit);
+  if (!apiConfig) return;
+
+  const nextState: ConversationState = {
+    ...state,
+    apiConfig,
+    messages: resolved.context,
+    abortController: null
+  };
+  chatSessions.set(port, nextState);
+
+  console.log('[Service Worker] Retrying chat message at index', resolved.messageIndex, 'for history', state.historyId);
+  await runConversationStream(nextState, emit, resolved.preview, { includeMessagesOnComplete: true });
 }
 
 // ============================================================================
@@ -646,11 +691,35 @@ async function convertPdfToMarkdownViaOffscreen(arrayBuffer: ArrayBuffer): Promi
 // AI Streaming
 // ============================================================================
 
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+let keepAliveCount = 0;
+
 /**
- * Read chunks from a streaming response and forward them to the side panel.
+ * MV3 service workers can be terminated while a Port stays open, so streaming
+ * work must keep the worker alive. Reference-counted so concurrent streams
+ * (side panel + several chat tabs) only need a single interval.
+ */
+function ensureKeepAlive(): () => void {
+  keepAliveCount++;
+  if (keepAliveTimer === null) {
+    keepAliveTimer = setInterval(() => {
+      chrome.storage.local.get('__keepalive').catch(() => {});
+    }, 4000);
+  }
+  return () => {
+    keepAliveCount = Math.max(0, keepAliveCount - 1);
+    if (keepAliveCount === 0 && keepAliveTimer !== null) {
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    }
+  };
+}
+
+/**
+ * Read chunks from a streaming response and forward them to the target.
  * Returns the full accumulated content.
  */
-async function readStreamChunks(response: Response, windowId: number): Promise<string> {
+async function readStreamChunks(response: Response, emit: StreamEmitter): Promise<string> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -678,11 +747,7 @@ async function readStreamChunks(response: Response, windowId: number): Promise<s
         if (content) {
           chunkCount++;
           fullContent += content;
-          await chrome.runtime.sendMessage({
-            type: MessageType.STREAM_CHUNK,
-            content,
-            windowId
-          });
+          await emit({ type: MessageType.STREAM_CHUNK, content });
         }
       } catch (e) {
         // Ignore malformed JSON
@@ -694,30 +759,35 @@ async function readStreamChunks(response: Response, windowId: number): Promise<s
   return fullContent;
 }
 
-async function streamAIResponse(
-  windowId: number,
-  promptPreview?: string
-): Promise<void> {
-  const state = conversations.get(windowId);
-  if (!state) {
-    console.error('[Service Worker] No conversation state for window', windowId);
-    return;
-  }
+interface RunConversationOptions {
+  /** Chat-tab path: include the authoritative full messages array on STREAM_COMPLETE. */
+  includeMessagesOnComplete?: boolean;
+}
 
+/**
+ * Core streaming pipeline shared by the side panel (window broadcast) and the
+ * full-page chat tab (directed Port). Events are forwarded through `emit` so
+ * the caller decides routing — chat events never broadcast to the side panel
+ * and side-panel streams never reach chat tabs.
+ */
+async function runConversationStream(
+  state: ConversationState,
+  emit: StreamEmitter,
+  promptPreview?: string,
+  opts?: RunConversationOptions
+): Promise<void> {
+  const stopKeepAlive = ensureKeepAlive();
   const isFollowUp = state.messages.filter(m => m.role === 'user').length > 1;
 
-  // Notify side panel that stream is starting
-  console.log('[Service Worker] Sending STREAM_START to window', windowId);
+  // Notify the target that the stream is starting
   try {
     const lastMsg = state.messages[state.messages.length - 1];
-    await chrome.runtime.sendMessage({
+    await emit({
       type: MessageType.STREAM_START,
-      windowId,
       promptPreview,
       isFollowUp,
       userMessage: isFollowUp && lastMsg.role === 'user' ? lastMsg.content : undefined
     });
-    console.log('[Service Worker] STREAM_START sent');
   } catch (e: any) {
     console.error('[Service Worker] Failed to send STREAM_START:', e.message);
   }
@@ -759,13 +829,13 @@ async function streamAIResponse(
       throw new Error(`API error ${response.status}: ${errorText}`);
     }
 
-    const fullContent = await readStreamChunks(response, windowId);
+    const fullContent = await readStreamChunks(response, emit);
 
     // Append assistant message to state
     state.messages.push({ role: 'assistant', content: fullContent });
 
     // Generate title and save history before notifying completion
-    // so sidepanel can receive historyId for follow-up recovery
+    // so the receiver can get the historyId for follow-up recovery
     if (state.historyId === null) {
       const generatedTitle = await generateAITitle(state.apiConfig, fullContent);
       if (generatedTitle) {
@@ -773,32 +843,36 @@ async function streamAIResponse(
         console.log('[Service Worker] AI title generated:', generatedTitle);
       }
     }
-    await saveOrUpdateHistory(windowId, fullContent);
+    await saveOrUpdateHistory(state, fullContent);
 
-    await chrome.runtime.sendMessage({
+    await emit({
       type: MessageType.STREAM_COMPLETE,
-      windowId,
-      historyId: state.historyId
+      historyId: state.historyId,
+      ...(opts?.includeMessagesOnComplete ? { messages: state.messages } : {})
     });
   } catch (error: any) {
     clearTimeout(timeout);
     if (error.name === 'AbortError') {
       console.log('[Service Worker] Stream aborted by user');
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_ABORTED,
-        windowId
-      });
+      await emit({ type: MessageType.STREAM_ABORTED });
     } else {
       console.error('[Service Worker] Streaming error:', error);
-      await chrome.runtime.sendMessage({
-        type: MessageType.STREAM_ERROR,
-        error: error.message || 'Unknown streaming error',
-        windowId
-      });
+      await emit({ type: MessageType.STREAM_ERROR, error: error.message || 'Unknown streaming error' });
     }
   } finally {
     state.abortController = null;
+    stopKeepAlive();
   }
+}
+
+/** Side-panel path: run the stream for a window-scoped conversation and broadcast. */
+async function streamAIResponse(windowId: number, promptPreview?: string): Promise<void> {
+  const state = conversations.get(windowId);
+  if (!state) {
+    console.error('[Service Worker] No conversation state for window', windowId);
+    return;
+  }
+  await runConversationStream(state, broadcastEmitter(windowId), promptPreview);
 }
 
 // ============================================================================
@@ -1155,6 +1229,166 @@ async function showPageMarkdown(tabId: number, windowId: number, tabUrl?: string
     } catch {}
   }
 }
+
+// ============================================================================
+// Chat Tab Port (full-page conversation tabs)
+// ============================================================================
+
+/**
+ * Load a saved conversation into a chat-tab session. Each chat tab owns its own
+ * ConversationState (keyed by its Port), completely independent from the
+ * window-scoped side-panel conversations map.
+ */
+async function openChatSession(port: chrome.runtime.Port, historyId: number): Promise<void> {
+  const item = await getHistoryDetail(historyId);
+  if (!item) {
+    port.postMessage({ type: MessageType.CHAT_OPEN_ERROR, error: t('serviceWorker.error.historyNotFound') });
+    return;
+  }
+
+  const history = {
+    id: item.id,
+    title: item.title || '',
+    url: item.url || '',
+    prompt: item.prompt || '',
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  };
+
+  // Old records without a `messages` column can only be read as Markdown.
+  if (!item.messages) {
+    port.postMessage({
+      type: MessageType.CHAT_OPENED,
+      history,
+      supportsFollowUp: false,
+      response: item.response || ''
+    });
+    return;
+  }
+
+  let messages: Array<{ role: string; content: string }>;
+  try {
+    messages = JSON.parse(item.messages);
+  } catch {
+    port.postMessage({ type: MessageType.CHAT_OPEN_ERROR, error: t('serviceWorker.error.parseMessagesFailed') });
+    return;
+  }
+
+  // Pure read of the stored config; do not auto-open options here.
+  const apiConfig = await getApiConfig();
+  const state: ConversationState = {
+    historyId: item.id,
+    title: item.title || '',
+    url: item.url || '',
+    prompt: item.prompt || '',
+    messages,
+    abortController: null,
+    apiConfig
+  };
+  chatSessions.set(port, state);
+
+  port.postMessage({
+    type: MessageType.CHAT_OPENED,
+    history,
+    messages,
+    supportsFollowUp: true
+  });
+}
+
+async function handleChatPortMessage(port: chrome.runtime.Port, message: ExtensionMessage): Promise<void> {
+  try {
+    switch (message.type) {
+      case MessageType.CHAT_OPEN: {
+        const historyId = Number((message as any).historyId);
+        if (!Number.isInteger(historyId) || historyId <= 0) {
+          port.postMessage({ type: MessageType.CHAT_OPEN_ERROR, error: t('serviceWorker.error.historyNotFound') });
+          return;
+        }
+        await openChatSession(port, historyId);
+        break;
+      }
+
+      case MessageType.CHAT_FOLLOW_UP: {
+        const text = String((message as any).text || '').trim();
+        if (!text) return;
+        let state = chatSessions.get(port);
+        if (!state) {
+          await portEmitter(port)({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.noActiveConversation') });
+          return;
+        }
+        if (!state.apiConfig.api_key) {
+          const apiConfig = await requireApiConfig(undefined, portEmitter(port));
+          if (!apiConfig) return;
+          state = { ...state, apiConfig };
+          chatSessions.set(port, state);
+        }
+        const nextState: ConversationState = {
+          ...state,
+          messages: [...state.messages, { role: 'user', content: text }],
+          abortController: null
+        };
+        chatSessions.set(port, nextState);
+        const preview = text.length > 200 ? text.slice(0, 200) + '...' : text;
+        await runConversationStream(nextState, portEmitter(port), preview, { includeMessagesOnComplete: true });
+        break;
+      }
+
+      case MessageType.CHAT_RETRY: {
+        const messageIndex = Number((message as any).messageIndex);
+        await retryChatMessage(port, messageIndex);
+        break;
+      }
+
+      case MessageType.CHAT_DELETE_MESSAGE: {
+        const state = chatSessions.get(port);
+        if (!state) return;
+        const messageIndex = Number((message as any).messageIndex);
+        if (!Number.isInteger(messageIndex) || messageIndex < 0 || messageIndex >= state.messages.length) return;
+        const updatedMessages = state.messages.filter((_, i) => i !== messageIndex);
+        const assistantMessages = updatedMessages.filter(m => m.role === 'assistant');
+        const response = assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1].content : '';
+        if (state.historyId) {
+          await updateHistory(state.historyId, JSON.stringify(updatedMessages), response);
+        }
+        state.messages = updatedMessages;
+        port.postMessage({ type: MessageType.CHAT_DELETED, messages: updatedMessages, response });
+        break;
+      }
+
+      case MessageType.CHAT_ABORT: {
+        const state = chatSessions.get(port);
+        if (state?.abortController) {
+          state.abortController.abort();
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  } catch (error: any) {
+    console.error('[Service Worker] Chat port handler error:', error);
+    try {
+      port.postMessage({ type: MessageType.STREAM_ERROR, error: error.message || 'Unknown error' });
+    } catch {}
+  }
+}
+
+chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
+  if (port.name !== CHAT_PORT_NAME) return;
+  console.log('[Service Worker] Chat port connected');
+  port.onMessage.addListener((message) => {
+    void handleChatPortMessage(port, message as ExtensionMessage);
+  });
+  port.onDisconnect.addListener(() => {
+    const state = chatSessions.get(port);
+    if (state) {
+      state.abortController?.abort();
+      chatSessions.delete(port);
+    }
+    console.log('[Service Worker] Chat port disconnected');
+  });
+});
 
 // ============================================================================
 // Message Handler

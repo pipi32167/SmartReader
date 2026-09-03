@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="chat.title">SmartReader - 对话</title>
+  <link rel="stylesheet" href="./chat.css">
+</head>
+<body>
+  <div class="chat-container">
+    <header class="header">
+      <div class="header-content">
+        <span class="logo" data-i18n="sidepanel.logo">🤖 SmartReader</span>
+        <div class="chat-header-main">
+          <div class="chat-title" id="chatTitle"></div>
+          <a class="chat-title-meta" id="chatSourceLink" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <div class="header-right">
+          <div class="status" id="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="status-text" id="statusText"></span>
+          </div>
+          <button id="abortBtn" class="abort-btn hidden" data-i18n="sidepanel.btn.abort">⏹ 中断</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="chat-main" id="chatMain">
+      <div id="chatLoading" class="chat-loading hidden"></div>
+      <div id="chatError" class="chat-error hidden"></div>
+      <div id="thread" class="thread"></div>
+    </main>
+
+    <div id="followUpArea" class="follow-up-area hidden">
+      <textarea id="followUpInput" data-i18n-placeholder="sidepanel.placeholder.followUp" placeholder="继续提问..." rows="1"></textarea>
+      <button id="followUpSendBtn" data-i18n="sidepanel.btn.send">发送</button>
+    </div>
+  </div>
+
+  <script type="module" src="./chat.ts"></script>
+</body>
+</html>

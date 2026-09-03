@@ -396,6 +396,23 @@ body {
   border-color: #f59e0b;
 }
 
+.open-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  color: #1a73e8;
+  background: #e8f0fe;
+  border: 1px solid #1a73e8;
+}
+
+.open-btn:hover {
+  background: #1a73e8;
+  color: white;
+}
+
 /* History Search */
 .history-search {
   width: 100%;
@@ -498,6 +515,33 @@ body {
 
 .history-item-favorite:hover {
   background: #fffbeb;
+}
+
+.history-item-open {
+  position: absolute;
+  top: 8px;
+  right: 72px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 1;
+}
+
+.history-item:hover .history-item-open {
+  opacity: 1;
+}
+
+.history-item-open:hover {
+  background: #fff3e0;
 }
 
 .history-item-title {
@@ -798,9 +842,10 @@ body {
   background: #e8f5e9;
 }
 
-/* Output view current response: always show copy/retry buttons */
+/* Output view current response: always show copy/retry/open buttons */
 .response-toolbar .msg-copy-btn,
-.response-toolbar .msg-retry-btn {
+.response-toolbar .msg-retry-btn,
+.response-toolbar .msg-open-btn {
   width: 24px;
   height: 24px;
   display: flex;
@@ -820,6 +865,10 @@ body {
 
 .response-toolbar .msg-retry-btn:hover {
   background: #e8f5e9;
+}
+
+.response-toolbar .msg-open-btn:hover {
+  background: #fff3e0;
 }
 
 .response-toolbar {

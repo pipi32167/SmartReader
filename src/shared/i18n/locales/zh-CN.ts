@@ -53,6 +53,7 @@ export const zhCN: TranslationMap = {
   'sidepanel.btn.favorite': '收藏',
   'sidepanel.btn.viewPrompt': '🔍 查看完整提示词',
   'sidepanel.btn.deleteMessage': '删除此消息',
+  'sidepanel.btn.openInNewPage': '在新页面中打开',
   'sidepanel.placeholder.followUp': '继续提问...',
   'sidepanel.history.searchPlaceholder': '搜索标题、URL、提示词...',
   'sidepanel.history.empty': '暂无历史记录',
@@ -70,6 +71,11 @@ export const zhCN: TranslationMap = {
   'sidepanel.confirm.deleteMessage': '确定删除这条消息？',
   'sidepanel.confirm.retryMessage': '确定重新生成这条回复？',
   'sidepanel.confirm.clearHistory': '确定清空所有历史记录？此操作不可恢复。',
+
+  // Chat tab (full-page conversation)
+  'chat.title': 'SmartReader - 对话',
+  'chat.error.noHistoryParam': '缺少有效的对话参数 (historyId)',
+  'chat.error.disconnected': '与后台服务连接断开，请重新加载页面',
 
   // Options
   'options.title': 'SmartReader - 设置',
