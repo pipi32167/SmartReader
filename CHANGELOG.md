@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.14 - 2026-09-04
+
+### Features
+- Add a full-page conversation tab that can be opened from a history record, with follow-up streaming, delete, and retry actions
+- Add support for Ollama as an AI provider
+
+### Fixes
+- Fix follow-up input in history detail not appearing until the record was opened a second time
+
 ## 1.0.11 - 2026-05-12
 
 ### Features
