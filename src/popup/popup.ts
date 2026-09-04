@@ -1,6 +1,7 @@
 import { MessageType } from '../shared/types';
 import type { Prompt } from '../shared/types';
 import { t, initPage } from '../shared/i18n';
+import { isApiConfigUsable } from '../shared/utils';
 
 let prompts: Prompt[] = [];
 
@@ -114,7 +115,7 @@ async function handlePromptClick(promptId: number) {
 
     // Check API config before opening side panel
     const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
-    if (!apiConfig?.data?.api_key) {
+    if (!isApiConfigUsable(apiConfig?.data)) {
       showError(t('popup.error.noApiKey'));
       setTimeout(() => {
         chrome.runtime.openOptionsPage();
@@ -202,7 +203,7 @@ async function handleCustomSend() {
 
     // Check API config before opening side panel
     const apiConfig = await chrome.runtime.sendMessage({ type: MessageType.GET_API_CONFIG });
-    if (!apiConfig?.data?.api_key) {
+    if (!isApiConfigUsable(apiConfig?.data)) {
       showError(t('popup.error.noApiKey'));
       setTimeout(() => {
         chrome.runtime.openOptionsPage();

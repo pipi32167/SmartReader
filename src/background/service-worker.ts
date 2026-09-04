@@ -1,7 +1,7 @@
 import { MessageType } from '../shared/types';
 import type { ApiConfig, Prompt, PageContent, ExtensionMessage } from '../shared/types';
 import { MAX_CONTENT_LENGTH } from '../shared/constants';
-import { arrayBufferToBase64 } from '../shared/utils';
+import { arrayBufferToBase64, isApiConfigUsable, isLocalApiBaseUrl } from '../shared/utils';
 import { t, initTranslations, getLocaleSync } from '../shared/i18n';
 
 let offscreenReady = false;
@@ -31,6 +31,17 @@ function broadcastEmitter(windowId: number): StreamEmitter {
 /** Chat-tab path: deliver stream events only to the owning port. */
 function portEmitter(port: chrome.runtime.Port): StreamEmitter {
   return (event) => { try { port.postMessage(event); } catch {} };
+}
+
+/**
+ * Build JSON request headers for an OpenAI-compatible endpoint. The
+ * Authorization header is only added when an API key is present, so local
+ * endpoints such as Ollama can work without a key.
+ */
+function apiHeaders(apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  return headers;
 }
 
 // ============================================================================
@@ -234,7 +245,7 @@ async function getApiConfig(): Promise<ApiConfig> {
 
 async function requireApiConfig(windowId?: number, emit?: StreamEmitter): Promise<ApiConfig | null> {
   const apiConfig = await getApiConfig();
-  if (!apiConfig.api_key) {
+  if (!isApiConfigUsable(apiConfig)) {
     chrome.runtime.openOptionsPage();
     const emitter = emit ?? (windowId !== undefined ? broadcastEmitter(windowId) : undefined);
     if (emitter) {
@@ -316,10 +327,7 @@ async function generateAITitle(apiConfig: ApiConfig, content: string): Promise<s
     const baseUrl = apiConfig.base_url.replace(/\/$/, '');
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.api_key}`
-      },
+      headers: apiHeaders(apiConfig.api_key),
       body: JSON.stringify({
         model: apiConfig.model,
         messages: [
@@ -508,10 +516,12 @@ async function retryChatMessage(port: chrome.runtime.Port, messageIndex: number)
   const resolved = await resolveRetryContext(state.messages, messageIndex, emit);
   if (!resolved) return;
 
-  const apiConfig = state.apiConfig.api_key
-    ? state.apiConfig
-    : await requireApiConfig(undefined, emit);
-  if (!apiConfig) return;
+  let apiConfig = state.apiConfig;
+  if (!isApiConfigUsable(apiConfig)) {
+    const fetched = await requireApiConfig(undefined, emit);
+    if (!fetched) return;
+    apiConfig = fetched;
+  }
 
   const nextState: ConversationState = {
     ...state,
@@ -804,10 +814,7 @@ async function runConversationStream(
 
     return fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.apiConfig.api_key}`
-      },
+      headers: apiHeaders(state.apiConfig.api_key),
       body: JSON.stringify({
         model: state.apiConfig.model,
         messages: apiMessages,
@@ -826,6 +833,11 @@ async function runConversationStream(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
+      if (response.status === 403 && isLocalApiBaseUrl(state.apiConfig.base_url)) {
+        // Ollama (and other local OpenAI-compat servers) reject the
+        // chrome-extension:// Origin unless allowed via OLLAMA_ORIGINS.
+        throw new Error(t('serviceWorker.apiError.localOriginBlocked'));
+      }
       throw new Error(`API error ${response.status}: ${errorText}`);
     }
 
@@ -1316,7 +1328,7 @@ async function handleChatPortMessage(port: chrome.runtime.Port, message: Extensi
           await portEmitter(port)({ type: MessageType.STREAM_ERROR, error: t('serviceWorker.error.noActiveConversation') });
           return;
         }
-        if (!state.apiConfig.api_key) {
+        if (!isApiConfigUsable(state.apiConfig)) {
           const apiConfig = await requireApiConfig(undefined, portEmitter(port));
           if (!apiConfig) return;
           state = { ...state, apiConfig };
@@ -1480,14 +1492,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
             const url = (baseUrl || '').replace(/\/$/, '') + '/chat/completions';
             const response = await fetch(url, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-              },
+              headers: apiHeaders(apiKey || ''),
               body: JSON.stringify({
                 model: model || 'gpt-4o-mini',
-                messages: [{ role: 'user', content: 'Hi' }],
-                max_completion_tokens: 1
+                messages: [{ role: 'user', content: 'Hi' }]
               })
             });
             if (response.ok) {
@@ -1495,7 +1503,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
             } else {
               const errorText = await response.text().catch(() => 'Unknown error');
               let friendlyError = t('serviceWorker.apiError.generic', { status: response.status });
-              if (response.status === 401) {
+              if (response.status === 403 && isLocalApiBaseUrl(baseUrl || '')) {
+                // Ollama (and other local OpenAI-compat servers) reject the
+                // chrome-extension:// Origin unless allowed via OLLAMA_ORIGINS.
+                friendlyError = t('serviceWorker.apiError.localOriginBlocked');
+              } else if (response.status === 401) {
                 friendlyError = t('serviceWorker.apiError.invalidKey');
               } else if (response.status === 404) {
                 friendlyError = t('serviceWorker.apiError.modelNotFound');
@@ -1578,7 +1590,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           }
 
           // Validate API config for active conversation
-          if (!state.apiConfig.api_key) {
+          if (!isApiConfigUsable(state.apiConfig)) {
             const apiConfig = await requireApiConfig(windowId);
             if (!apiConfig) {
               sendResponse({ success: false, error: t('serviceWorker.error.apiKeyMissingShort') });

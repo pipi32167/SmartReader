@@ -45,6 +45,7 @@
               <option value="minimax">MiniMax</option>
               <option value="groq">Groq</option>
               <option value="mistral">Mistral</option>
+              <option value="ollama">Ollama</option>
               <option value="custom" data-i18n="options.provider.custom">自定义</option>
             </select>
             <span class="hint" data-i18n="options.hint.provider">选择后自动填充 Base URL 和推荐模型</span>
@@ -58,7 +59,7 @@
 
           <div class="form-group">
             <label for="apiKey" data-i18n="options.label.apiKey">API Key</label>
-            <input type="password" id="apiKey" data-i18n-placeholder="options.placeholder.apiKey" placeholder="sk-..." required>
+            <input type="password" id="apiKey" data-i18n-placeholder="options.placeholder.apiKey" placeholder="sk-...">
             <button type="button" id="toggleApiKey" class="toggle-btn" data-i18n="options.btn.show">显示</button>
             <span class="hint" data-i18n="options.hint.apiKey">您的 API 密钥，仅存储在本地</span>
           </div>

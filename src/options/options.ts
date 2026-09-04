@@ -1,6 +1,7 @@
 import { MessageType } from '../shared/types';
 import type { ApiConfig, Prompt } from '../shared/types';
 import { t, initPage, getCurrentLocale, setLocale } from '../shared/i18n';
+import { isLocalApiBaseUrl } from '../shared/utils';
 
 let currentTab = 'api';
 let prompts: Prompt[] = [];
@@ -28,6 +29,7 @@ const PROVIDER_PRESETS: Record<string, ProviderPreset> = {
   minimax: { name: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1', model: 'abab6.5s-chat' },
   groq: { name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama3-8b-8192' },
   mistral: { name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest' },
+  ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434/v1', model: 'llama3.1' },
 };
 
 // ============================================================================
@@ -164,7 +166,7 @@ function setupTestApiButton() {
     const apiKey = (document.getElementById('apiKey') as HTMLInputElement).value.trim();
     const model = (document.getElementById('model') as HTMLInputElement).value.trim();
 
-    if (!baseUrl || !apiKey || !model) {
+    if (!baseUrl || !model || (!apiKey && !isLocalApiBaseUrl(baseUrl))) {
       showTestStatus(t('options.error.incompleteConfig'), 'error');
       return;
     }

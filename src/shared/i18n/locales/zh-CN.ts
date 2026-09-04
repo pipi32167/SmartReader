@@ -162,6 +162,7 @@ export const zhCN: TranslationMap = {
   'serviceWorker.apiError.rateLimited': '请求过于频繁，请稍后再试',
   'serviceWorker.apiError.networkError': '网络错误：{{message}}',
   'serviceWorker.apiError.connectFailed': '无法连接到 API',
+  'serviceWorker.apiError.localOriginBlocked': '本地服务拒绝了来自扩展的请求 (403)。Ollama 需允许扩展来源：先退出 Ollama，再运行 OLLAMA_ORIGINS="*" ollama serve（或先执行 launchctl setenv OLLAMA_ORIGINS "*" 再重启 Ollama），然后重试。',
   'serviceWorker.msg.pdfHint': '（以下是一份 PDF 文件：{{url}}）',
   'serviceWorker.msg.noSelection': '(未选中文字)',
   'serviceWorker.msg.pdfFileHeader': '> 📄 PDF 文件：`{{url}}`',

@@ -162,6 +162,7 @@ export const en: TranslationMap = {
   'serviceWorker.apiError.rateLimited': 'Too many requests, please try again later',
   'serviceWorker.apiError.networkError': 'Network error: {{message}}',
   'serviceWorker.apiError.connectFailed': 'Unable to connect to API',
+  'serviceWorker.apiError.localOriginBlocked': 'The local service rejected the request from this extension (403). Ollama must allow the extension origin: quit Ollama, then run OLLAMA_ORIGINS="*" ollama serve (or run launchctl setenv OLLAMA_ORIGINS "*" and restart Ollama), then retry.',
   'serviceWorker.msg.pdfHint': '(The following is a PDF file: {{url}})',
   'serviceWorker.msg.noSelection': '(No text selected)',
   'serviceWorker.msg.pdfFileHeader': '> 📄 PDF file: `{{url}}`',

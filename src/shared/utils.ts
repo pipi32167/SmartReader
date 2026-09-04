@@ -38,6 +38,35 @@ export function formatDate(timestamp: number): string {
 }
 
 /**
+ * Whether a base URL points at a loopback host (localhost / 127.0.0.1 / ::1).
+ * Local endpoints such as Ollama do not require an API key.
+ */
+export function isLocalApiBaseUrl(baseUrl: string): boolean {
+  if (!baseUrl) return false;
+  try {
+    const hostname = new URL(baseUrl).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0'
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * An API config is usable when it has a base URL + model and either an API key
+ * or a local (loopback) endpoint that does not need one.
+ */
+export function isApiConfigUsable(config: { base_url?: string; model?: string; api_key?: string }): boolean {
+  if (!config.base_url || !config.model) return false;
+  if (config.api_key) return true;
+  return isLocalApiBaseUrl(config.base_url);
+}
+
+/**
  * Convert ArrayBuffer to Base64 string without stack overflow.
  * Avoids spread operator on large arrays (> ~500k items).
  */
