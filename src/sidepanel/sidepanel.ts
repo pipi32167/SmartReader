@@ -490,6 +490,23 @@ function closePromptModal() {
   if (modal) modal.classList.add('hidden');
 }
 
+/**
+ * Show/hide the bottom follow-up input for the current view.
+ * Extracted so it can be re-evaluated after async history-detail loads update
+ * currentHistorySupportsFollowUp, which is unknown until the data arrives.
+ */
+function updateFollowUpAreaVisibility() {
+  const followUpArea = document.getElementById('followUpArea');
+  if (!followUpArea) return;
+  let shouldShow = false;
+  if (currentView === 'output') {
+    shouldShow = !isStreaming && hasActiveConversation();
+  } else if (currentView === 'history-detail') {
+    shouldShow = !isStreaming && currentHistorySupportsFollowUp;
+  }
+  followUpArea.classList.toggle('hidden', !shouldShow);
+}
+
 function showView(view: 'output' | 'history-list' | 'history-detail') {
   currentView = view;
   const output = document.getElementById('output');
@@ -500,17 +517,7 @@ function showView(view: 'output' | 'history-list' | 'history-detail') {
   if (historyListView) historyListView.classList.toggle('hidden', view !== 'history-list');
   if (historyDetailView) historyDetailView.classList.toggle('hidden', view !== 'history-detail');
 
-  // Update follow-up area visibility
-  const followUpArea = document.getElementById('followUpArea');
-  if (followUpArea) {
-    let shouldShow = false;
-    if (view === 'output') {
-      shouldShow = !isStreaming && hasActiveConversation();
-    } else if (view === 'history-detail') {
-      shouldShow = !isStreaming && currentHistorySupportsFollowUp;
-    }
-    followUpArea.classList.toggle('hidden', !shouldShow);
-  }
+  updateFollowUpAreaVisibility();
 }
 
 async function loadHistoryList(keyword?: string, favoritesOnly?: boolean) {
@@ -613,6 +620,9 @@ async function showHistoryDetail(id: number) {
     if (response?.success && response.data) {
       const item = response.data;
       currentHistorySupportsFollowUp = !!item.messages;
+      // The flag was unknown when showView('history-detail') ran above, so the
+      // follow-up input's visibility must be synced now that the data arrived.
+      updateFollowUpAreaVisibility();
       // Show prompt in meta for all records that have one
       const hasPrompt = !!item.prompt;
       const promptDisplay = hasPrompt ? truncate(item.prompt, 200) : '';
@@ -711,10 +721,14 @@ async function showHistoryDetail(id: number) {
       }
     } else {
       contentEl.innerHTML = `<p style="color:#c62828;padding:20px;">${t('sidepanel.error.loadFailed')}</p>`;
+      currentHistorySupportsFollowUp = false;
+      updateFollowUpAreaVisibility();
     }
   } catch (error) {
     console.error('[SidePanel] Failed to load history detail:', error);
     contentEl.innerHTML = `<p style="color:#c62828;padding:20px;">${t('sidepanel.error.loadFailed')}</p>`;
+    currentHistorySupportsFollowUp = false;
+    updateFollowUpAreaVisibility();
   }
 }
 
